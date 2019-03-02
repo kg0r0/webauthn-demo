@@ -7,7 +7,8 @@ const database = require('./db');
 router.get('/isLoggedIn', (request, response) => {
     if(!request.session.loggedIn) {
         response.json({
-            'status': 'failed'
+            'status': 'failed',
+            'errorMessage': 'Not Logged in.'
         })
     } else {
         response.json({
@@ -20,7 +21,6 @@ router.get('/isLoggedIn', (request, response) => {
 router.get('/logout', (request, response) => {
     request.session.loggedIn = false;
     request.session.username = undefined;
-
     response.json({
         'status': 'ok'
     })
@@ -31,13 +31,12 @@ router.get('/personalInfo', (request, response) => {
     if(!request.session.loggedIn) {
         response.json({
             'status': 'failed',
-            'message': 'Access denied'
+            'errorMessage': 'Access denied'
         })
     } else {
         response.json({
             'status': 'ok',
             'name': database[request.session.username].name,
-            'theSecret': '<img width="250px" src="img/theworstofthesecrets.jpg">'
         })
     }
 })
