@@ -1,7 +1,7 @@
 /**
  * Switch to login page
  */
-$('#toLogin').click(function(e) {
+$('#toLogin').click(function (e) {
     e.preventDefault();
     $('#registerContainer').hide();
     $('#loginContainer').show();
@@ -10,33 +10,64 @@ $('#toLogin').click(function(e) {
 /**
  * Switch to registration page
  */
-$('#toRegistration').click(function(e) {
+$('#toRegistration').click(function (e) {
     e.preventDefault();
     $('#loginContainer').hide();
     $('#registerContainer').show();
 })
 
 let loadMainContainer = () => {
-    return fetch('/personalInfo', {credentials: 'include'})
+    return fetch('/personalInfo', { credentials: 'include' })
         .then((response) => response.json())
         .then((response) => {
-            if(response.status === 'ok') {
-                $('#theSecret').html(response.theSecret)
+            if (response.status === 'ok') {
                 $('#name').html(response.name)
                 $('#registerContainer').hide();
                 $('#loginContainer').hide();
                 $('#mainContainer').show();
             } else {
-                alert(`Error! ${response.message}`)
+                alert(`Error! ${response.errorMessage}`)
+            }
+        })
+}
+
+let loadMainRegistrationContainer = () => {
+    return fetch('/personalInfo', { credentials: 'include' })
+        .then((response) => response.json())
+        .then((response) => {
+            if (response.status === 'ok') {
+                $('#registrationName').html(response.name)
+                $('#registerContainer').hide();
+                $('#loginContainer').hide();
+                $('#mainAuthenticationContainer').hide();
+                $('#mainRegistrationContainer').show();
+            } else {
+                alert(`Error! ${response.errorMessage}`)
+            }
+        })
+}
+
+let loadMainAuthenticationContainer = () => {
+    return fetch('/personalInfo', { credentials: 'include' })
+        .then((response) => response.json())
+        .then((response) => {
+            if (response.status === 'ok') {
+                $('#loginName').html(response.name)
+                $('#registerContainer').hide();
+                $('#loginContainer').hide();
+                $('#mainRegistrationContainer').hide();
+                $('#mainAuthenticationContainer').show();
+            } else {
+                alert(`Error! ${response.errorMessage}`)
             }
         })
 }
 
 let checkIfLoggedIn = () => {
-    return fetch('/isLoggedIn', {credentials: 'include'})
+    return fetch('/isLoggedIn', { credentials: 'include' })
         .then((response) => response.json())
         .then((response) => {
-            if(response.status === 'ok') {
+            if (response.status === 'ok') {
                 return true
             } else {
                 return false
@@ -44,10 +75,18 @@ let checkIfLoggedIn = () => {
         })
 }
 
-$('#logoutButton').click(() => {
-    fetch('/logout', {credentials: 'include'});
-
+$('#registrationToLogout').click(() => {
+    fetch('/logout', { credentials: 'include' });
     $('#registerContainer').hide();
-    $('#mainContainer').hide();
+    $('#mainRegistrationContainer').hide();
+    $('#mainAuthenticationContainer').hide();
+    $('#loginContainer').show();
+})
+
+$('#loginToLogout').click(() => {
+    fetch('/logout', { credentials: 'include' });
+    $('#registerContainer').hide();
+    $('#mainRegistrationContainer').hide();
+    $('#mainAuthenticationContainer').hide();
     $('#loginContainer').show();
 })

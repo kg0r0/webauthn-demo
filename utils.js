@@ -77,7 +77,7 @@ let base64ToPem = (b64cert) => {
 }
 
 let base64UrlChecker = (b64UrlString) => {
-    if(b64UrlString.indexOf('+') !== -1) {
+    if (b64UrlString.indexOf('+') !== -1) {
         return false
     } else if (b64UrlString.indexOf('/') !== -1) {
         return false;
@@ -88,7 +88,7 @@ let base64UrlChecker = (b64UrlString) => {
 }
 
 let userVerificationChecker = (flags, userVerification) => {
-    switch(userVerification) {
+    switch (userVerification) {
         case 'required':
             if (!(flags & USER_VERIFIED))
                 throw new Error('User was NOT verified durring authentication!');
@@ -416,56 +416,35 @@ let parseGetAssertAuthData = (buffer) => {
 let verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, userVerification) => {
     let authr = findAuthr(webAuthnResponse.id, authenticators);
 
-    if(!base64UrlChecker(webAuthnResponse.response.authenticatorData))
+    if (!base64UrlChecker(webAuthnResponse.response.authenticatorData))
         throw new Error('AuthenticatorData is not base64url encoded');
 
-    if(webAuthnResponse.response.userHandle && typeof webAuthnResponse.response.userHandle !== 'string')
+    if (webAuthnResponse.response.userHandle && typeof webAuthnResponse.response.userHandle !== 'string')
         throw new Error('userHandle is not of type DOMString');
 
-    let authenticatorData = base64url.toBuffer(webAuthnResponse.response.authenticatorData);
+    if (!base64UrlChecker(webAuthnResponse.response.signature))
+        throw new Error('Signature is not base64url encoded');
 
-    let response = { 'verified': false };
-    if (authr.fmt === 'fido-u2f') {
-        let authrDataStruct = parseGetAssertAuthData(authenticatorData);
+    let authenticatorData = base64url.toBuffer(webAuthnResponse.response.authenticatorData)
 
-        userVerificationChecker(authrDataStruct.flags, userVerification);
+    let response = { 'verified': false }
+    let authrDataStruct = parseGetAssertAuthData(authenticatorData)
+    userVerificationChecker(authrDataStruct.flags, userVerification);
 
-        let clientDataHash = hash(base64url.toBuffer(webAuthnResponse.response.clientDataJSON))
-        let signatureBase = Buffer.concat([authrDataStruct.rpIdHash, authrDataStruct.flagsBuf, authrDataStruct.counterBuf, clientDataHash]);
+    let clientDataHash = hash('sha256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON))
+    let signatureBase = Buffer.concat([authenticatorData, clientDataHash])
+    let publicKey = ASN1toPEM(base64url.toBuffer(authr.publicKey))
+    let signature = base64url.toBuffer(webAuthnResponse.response.signature)
+    response.verified = verifySignature(signature, signatureBase, publicKey)
 
-        let publicKey = ASN1toPEM(base64url.toBuffer(authr.publicKey));
-        let signature = base64url.toBuffer(webAuthnResponse.response.signature);
+    if (response.verified) {
+        if (response.counter <= authr.counter) { throw new Error('Authr counter did not increase!') }
 
-        response.verified = verifySignature(signature, signatureBase, publicKey)
-
-        if (response.verified) {
-            if (response.counter <= authr.counter)
-                throw new Error('Authr counter did not increase!');
-            authr.counter = authrDataStruct.counter
-        }
-    } else if (authr.fmt === 'packed') {
-        let authrDataStruct = parseGetAssertAuthData(authenticatorData);
-        let clientDataHash = hash('SHA256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON))
-        let signatureBase = Buffer.concat([authrDataStruct.rpIdHash, authrDataStruct.flagsBuf, authrDataStruct.counterBuf, clientDataHash]);
-
-        if(!base64UrlChecker(webAuthnResponse.response.signature))
-            throw new Error('Signature is not base64url encoded');
-
-        let signature = base64url.toBuffer(webAuthnResponse.response.signature);
-        let publicKey;
-
-        userVerificationChecker(authrDataStruct.flags, userVerification);
-        publicKey = ASN1toPEM(base64url.toBuffer(authr.publicKey));
-        response.verified = verifySignature(signature, signatureBase, publicKey)
-
-        if (response.verified) {
-            if (response.counter <= authr.counter)
-                throw new Error('Authr counter did not increase!');
-
-            authr.counter = authrDataStruct.counter
-        }
+        authr.counter = authrDataStruct.counter
     }
+
     return response
+
 }
 
 let verifyPackedAttestation = (webAuthnResponse) => {
@@ -480,10 +459,10 @@ let verifyPackedAttestation = (webAuthnResponse) => {
 
     if (!attestationStruct.attStmt.alg)
         throw new Error('attStmt.alg is missing');
-    
+
     if (!COSEALGHASH.hasOwnProperty(attestationStruct.attStmt.alg))
         throw new Error('attStmt.alg is not support.')
-    
+
     if (typeof attestationStruct.attStmt.alg !== 'number')
         throw new Error('attStmt.alg is Not a Number');
 
