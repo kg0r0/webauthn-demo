@@ -438,7 +438,7 @@ let verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, us
     response.verified = verifySignature(signature, signatureBase, publicKey)
 
     if (response.verified) {
-        if (response.counter <= authr.counter) { throw new Error('Authr counter did not increase!') }
+        if (authrDataStruct.counter <= authr.counter) { throw new Error('Authr counter did not increase!') }
 
         authr.counter = authrDataStruct.counter
     }
