@@ -96,8 +96,6 @@ let userVerificationChecker = (flags, userVerification) => {
             break;
 
         case 'preferred':
-            if (!(flags & USER_PRESENTED) && !(flags & USER_VERIFIED))
-                throw new Error('User was NOT presented durring authentication!');
             break;
 
         case 'discouraged':
