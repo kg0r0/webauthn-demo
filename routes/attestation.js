@@ -16,27 +16,30 @@ router.post('/options', (request, response) => {
 
     let username = request.body.username;
     let displayName     = request.body.displayName;
+    let excludeCredentials;
 
     if(database[username] && database[username].registered) {
-        response.json({
-            'status': 'failed',
-            'errorMessage': `Username ${username} already exists`
-        })
-        return
+        excludeCredentials = [{
+            'type': 'public-key',
+            'id': database[username].authenticators[0].credID 
+        }]
+    } else {
+        database[username] = {
+            'name': displayName,
+            'registered': false,
+            'id': utils.randomBase64URLBuffer(),
+            'authenticators': []
+        }
     }
 
-    database[username] = {
-        'name': displayName,
-        'registered': false,
-        'id': utils.randomBase64URLBuffer(),
-        'authenticators': []
-    }
 
     let challengeMakeCred    = utils.generateServerMakeCredRequest(username, displayName, database[username].id, request.body.attestation);
     challengeMakeCred.status = 'ok'
     challengeMakeCred.errorMessage = '';
     challengeMakeCred.extensions = request.body.extensions;
     challengeMakeCred.authenticatorSelection = request.body.authenticatorSelection;
+    challengeMakeCred.excludeCredentials = excludeCredentials;
+
 
     request.session.challenge = challengeMakeCred.challenge;
     request.session.username  = username;
