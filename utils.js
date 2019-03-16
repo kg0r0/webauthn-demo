@@ -428,7 +428,6 @@ let verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, us
     let response = { 'verified': false }
     let authrDataStruct = parseGetAssertAuthData(authenticatorData)
 
-    //if(Buffer.compare(authrDataStruct.rpIdHash, hash('sha256', Buffer.from('localhost'))) !== 0)
     if(Buffer.compare(authrDataStruct.rpIdHash, hash('sha256', Buffer.from(webAuthnResponse.hostname))) !== 0)
         throw new Error('rpIdHash don\'t match!')
 
