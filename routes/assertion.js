@@ -57,8 +57,7 @@ router.post('/result', (request, response) => {
         return
     }
 
-    let webauthnResp = request.body
-    let clientData   = JSON.parse(base64url.decode(webauthnResp.response.clientDataJSON));
+    let clientData   = JSON.parse(base64url.decode(request.body.response.clientDataJSON));
 
     /* Check challenge... */
     if(clientData.challenge !== request.session.challenge) {
@@ -93,9 +92,9 @@ router.post('/result', (request, response) => {
     }
 
     let result;
-    if(webauthnResp.response.authenticatorData) {
+    if(request.body.response.authenticatorData) {
         /* This is get assertion */
-        result = utils.verifyAuthenticatorAssertionResponse(webauthnResp, database[request.session.username].authenticators, request.session.userVerification);
+        result = utils.verifyAuthenticatorAssertionResponse(request, database[request.session.username].authenticators, request.session.userVerification);
     } else {
         response.json({
             'status': 'failed',

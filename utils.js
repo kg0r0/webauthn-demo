@@ -412,27 +412,31 @@ let parseGetAssertAuthData = (buffer) => {
 }
 
 let verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, userVerification) => {
-    let authr = findAuthr(webAuthnResponse.id, authenticators);
+    let authr = findAuthr(webAuthnResponse.body.id, authenticators);
 
-    if (!base64UrlChecker(webAuthnResponse.response.authenticatorData))
+    if (!base64UrlChecker(webAuthnResponse.body.response.authenticatorData))
         throw new Error('AuthenticatorData is not base64url encoded');
 
-    if (webAuthnResponse.response.userHandle && typeof webAuthnResponse.response.userHandle !== 'string')
+    if (webAuthnResponse.body.response.userHandle && typeof webAuthnResponse.body.response.userHandle !== 'string')
         throw new Error('userHandle is not of type DOMString');
 
-    if (!base64UrlChecker(webAuthnResponse.response.signature))
+    if (!base64UrlChecker(webAuthnResponse.body.response.signature))
         throw new Error('Signature is not base64url encoded');
 
-    let authenticatorData = base64url.toBuffer(webAuthnResponse.response.authenticatorData)
+    let authenticatorData = base64url.toBuffer(webAuthnResponse.body.response.authenticatorData)
 
     let response = { 'verified': false }
     let authrDataStruct = parseGetAssertAuthData(authenticatorData)
+
+    if(Buffer.compare(authrDataStruct.rpIdHash, hash('sha256', Buffer.from(webAuthnResponse.hostname))) !== 0)
+        throw new Error('rpIdHash don\'t match!')
+
     userVerificationChecker(authrDataStruct.flags, userVerification);
 
-    let clientDataHash = hash('sha256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON))
+    let clientDataHash = hash('sha256', base64url.toBuffer(webAuthnResponse.body.response.clientDataJSON))
     let signatureBase = Buffer.concat([authenticatorData, clientDataHash])
     let publicKey = ASN1toPEM(base64url.toBuffer(authr.publicKey))
-    let signature = base64url.toBuffer(webAuthnResponse.response.signature)
+    let signature = base64url.toBuffer(webAuthnResponse.body.response.signature)
     response.verified = verifySignature(signature, signatureBase, publicKey)
 
     if (response.verified) {
