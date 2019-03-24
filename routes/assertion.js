@@ -1,5 +1,5 @@
 const express   = require('express');
-const utils     = require('../utils');
+const utils     = require('../libs/utils');
 const config    = require('../config.json');
 const base64url = require('base64url');
 const router    = express.Router();
@@ -49,7 +49,7 @@ router.post('/result', (request, response) => {
         return
     }
     
-    if (!utils.base64UrlChecker(request.body.id)) {
+    if (!utils.verifyBase64Url(request.body.id)) {
         response.json({
             'status': 'failed',
             'errorMessage': 'Invalid id!'

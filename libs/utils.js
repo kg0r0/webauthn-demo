@@ -76,7 +76,7 @@ let base64ToPem = (b64cert) => {
     return '-----BEGIN CERTIFICATE-----\n' + pemcert + '-----END CERTIFICATE-----';
 }
 
-let base64UrlChecker = (b64UrlString) => {
+let verifyBase64Url = (b64UrlString) => {
     if (b64UrlString.indexOf('+') !== -1) {
         return false
     } else if (b64UrlString.indexOf('/') !== -1) {
@@ -87,7 +87,7 @@ let base64UrlChecker = (b64UrlString) => {
     return true;
 }
 
-let userVerificationChecker = (flags, userVerification) => {
+let verifyUserVerification = (flags, userVerification) => {
     switch (userVerification) {
         case 'required':
             if (!(flags & USER_VERIFIED))
@@ -414,13 +414,13 @@ let parseGetAssertAuthData = (buffer) => {
 let verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, userVerification) => {
     let authr = findAuthr(webAuthnResponse.body.id, authenticators);
 
-    if (!base64UrlChecker(webAuthnResponse.body.response.authenticatorData))
+    if (!verifyBase64Url(webAuthnResponse.body.response.authenticatorData))
         throw new Error('AuthenticatorData is not base64url encoded');
 
     if (webAuthnResponse.body.response.userHandle && typeof webAuthnResponse.body.response.userHandle !== 'string')
         throw new Error('userHandle is not of type DOMString');
 
-    if (!base64UrlChecker(webAuthnResponse.body.response.signature))
+    if (!verifyBase64Url(webAuthnResponse.body.response.signature))
         throw new Error('Signature is not base64url encoded');
 
     let authenticatorData = base64url.toBuffer(webAuthnResponse.body.response.authenticatorData)
@@ -431,7 +431,7 @@ let verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, us
     if(Buffer.compare(authrDataStruct.rpIdHash, hash('sha256', Buffer.from(webAuthnResponse.hostname))) !== 0)
         throw new Error('rpIdHash don\'t match!')
 
-    userVerificationChecker(authrDataStruct.flags, userVerification);
+    verifyUserVerification(authrDataStruct.flags, userVerification);
 
     let clientDataHash = hash('sha256', base64url.toBuffer(webAuthnResponse.body.response.clientDataJSON))
     let signatureBase = Buffer.concat([authenticatorData, clientDataHash])
@@ -457,7 +457,7 @@ let verifyPackedAttestation = (webAuthnResponse) => {
 
     if (!authDataStruct.flags.up)
         throw new Error('User was NOT presented durring authentication!');
-    userVerificationChecker(authDataStruct.flags)
+    verifyUserVerification(authDataStruct.flags)
 
     if (!attestationStruct.attStmt.alg)
         throw new Error('attStmt.alg is missing');
@@ -553,7 +553,7 @@ let verifyPackedAttestation = (webAuthnResponse) => {
 
 
 module.exports = {
-    base64UrlChecker,
+    verifyBase64Url,
     randomBase64URLBuffer,
     generateServerMakeCredRequest,
     generateServerGetAssertion,
