@@ -8,6 +8,8 @@ const NodeRSA = require('node-rsa');
 const USER_PRESENTED = 0x01;
 const USER_VERIFIED = 0x04;
 
+const gsr2 = 'MIIDujCCAqKgAwIBAgILBAAAAAABD4Ym5g0wDQYJKoZIhvcNAQEFBQAwTDEgMB4GA1UECxMXR2xvYmFsU2lnbiBSb290IENBIC0gUjIxEzARBgNVBAoTCkdsb2JhbFNpZ24xEzARBgNVBAMTCkdsb2JhbFNpZ24wHhcNMDYxMjE1MDgwMDAwWhcNMjExMjE1MDgwMDAwWjBMMSAwHgYDVQQLExdHbG9iYWxTaWduIFJvb3QgQ0EgLSBSMjETMBEGA1UEChMKR2xvYmFsU2lnbjETMBEGA1UEAxMKR2xvYmFsU2lnbjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKbPJA6+Lm8omUVCxKs+IVSbC9N/hHD6ErPLv4dfxn+G07IwXNb9rfF73OX4YJYJkhD10FPe+3t+c4isUoh7SqbKSaZeqKeMWhG8eoLrvozps6yWJQeXSpkqBy+0Hne/ig+1AnwblrjFuTosvNYSuetZfeLQBoZfXklqtTleiDTsvHgMCJiEbKjNS7SgfQx5TfC4LcshytVsW33hoCmEofnTlEnLJGKRILzdC9XZzPnqJworc5HGnRusyMvo4KD0L5CLTfuwNhv2GXqF4G3yYROIXJ/gkwpRl4pazq+r1feqCapgvdzZX99yqWATXgAByUr6P6TqBwMhAo6CygPCm48CAwEAAaOBnDCBmTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUm+IHV2ccHsBqBt5ZtJot39wZhi4wNgYDVR0fBC8wLTAroCmgJ4YlaHR0cDovL2NybC5nbG9iYWxzaWduLm5ldC9yb290LXIyLmNybDAfBgNVHSMEGDAWgBSb4gdXZxwewGoG3lm0mi3f3BmGLjANBgkqhkiG9w0BAQUFAAOCAQEAmYFThxxol4aR7OBKuEQLq4GsJ0/WwbgcQ3izDJr86iw8bmEbTUsp9Z8FHSbBuOmDAGJFtqkIk7mpM0sYmsL4h4hO291xNBrBVNpGP+DTKqttVCL1OmLNIG+6KYnX3ZHu01yiPqFbQfXf5WRDLenVOavSot+3i9DAgBkcRcAtjOj4LaR0VknFBbVPFd5uRHg5h6h+u/N5GJG79G+dwfCMNYxdAfvDbbnvRG15RjF+Cv6pgsH/76tuIMRQyV+dTZsXjAzlAcmgQWpzU/qlULRuJQ/7TBj0/VLZjmmx6BEP3ojY+x1J96relc8geMJgEtslQIxq/H5COEBkEveegeGTLg=='
+
 const COSEKEYS = {
     'kty': 1,
     'alg': 3,
@@ -105,6 +107,39 @@ let verifyUserVerification = (flags, userVerification) => {
     }
     return;
 }
+
+let validateCertificatePath = (certificates) => {
+    if ((new Set(certificates)).size !== certificates.length) 
+        throw new Error('Failed to validate certificates path! Dublicate certificates detected!')
+  
+    for (let i = 0; i < certificates.length; i++) {
+      let subjectPem = certificates[i]
+      let subjectCert = new jsrsasign.X509()
+      subjectCert.readCertPEM(subjectPem)
+  
+      let issuerPem = ''
+      if (i + 1 >= certificates.length) { issuerPem = subjectPem } else { issuerPem = certificates[i + 1] }
+  
+      let issuerCert = new jsrsasign.X509()
+      issuerCert.readCertPEM(issuerPem)
+  
+      if (subjectCert.getIssuerString() !== issuerCert.getSubjectString())
+        throw new Error('Failed to validate certificate path! Issuers dont match!')
+  
+      let subjectCertStruct = jsrsasign.ASN1HEX.getTLVbyList(subjectCert.hex, 0, [0])
+      let algorithm = subjectCert.getSignatureAlgorithmField()
+      let signatureHex = subjectCert.getSignatureValueHex()
+  
+      let Signature = new jsrsasign.crypto.Signature({ alg: algorithm })
+      Signature.init(issuerPem)
+      Signature.updateHex(subjectCertStruct)
+  
+      if (!Signature.verify(signatureHex)) 
+        throw new Error('Failed to validate certificate path!')
+    }
+  
+    return true
+  }
 
 var getCertificateInfo = (certificate) => {
     let subjectCert = new jsrsasign.X509();
@@ -376,6 +411,57 @@ let verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
         }
     } else if (ctapMakeCredResp.fmt === 'packed') {
         response = verifyPackedAttestation(webAuthnResponse);
+    } else if (ctapMakeCredResp.fmt === 'android-safetynet') {
+        const jwsString = ctapMakeCredResp.attStmt.response.toString('utf8')
+        const jwsParts = jwsString.split('.')
+        const HEADER = JSON.parse(base64url.decode(jwsParts[0]))
+        const PAYLOAD = JSON.parse(base64url.decode(jwsParts[1]))
+        const SIGNATURE = jwsParts[2]
+        const clientDataHashBuf = hash('sha256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON))
+        const nonceBase = Buffer.concat([ctapMakeCredResp.authData, clientDataHashBuf])
+        const nonceBuffer = hash('sha256', nonceBase)
+        const expectedNonce = nonceBuffer.toString('base64')
+
+        if (!ctapMakeCredResp.attStmt.ver)
+            throw new Error('ver field is empty.');
+
+        if (PAYLOAD.nonce !== expectedNonce)
+            throw new Error(`PAYLOAD.nonce does not contains expected nonce! Expected ${PAYLOAD.nonce} to equal ${expectedNonce}!`)
+
+        if (PAYLOAD.ctsProfileMatch === false)
+            throw new Error('PAYLOAD.ctsProfileMatch is false!')
+        
+        const date = new Date().getTime();
+        if (date <= PAYLOAD.timestampMs)
+            throw new Error('PAYLOAD.timestampMs is future!')
+            
+        if (PAYLOAD.timestampMs <= date - (60 * 1000))
+            throw new Error('PAYLOAD.timestampMs is older than 1 minute!')
+
+        const certPath = HEADER.x5c.concat([gsr2]).map((cert) => {
+            let pemcert = ''
+            for (let i = 0; i < cert.length; i += 64) { pemcert += cert.slice(i, i + 64) + '\n' }
+        
+            return '-----BEGIN CERTIFICATE-----\n' + pemcert + '-----END CERTIFICATE-----'
+        })
+
+        if (getCertificateInfo(certPath[0]).subject.CN !== 'attest.android.com') 
+            throw new Error('The common name is not set to "attest.android.com"!')
+
+        //validateCertificatePath(certPath)
+        const signatureBaseBuffer = Buffer.from(jwsParts[0] + '.' + jwsParts[1])
+        const certificate = certPath[0]
+        const signatureBuffer = base64url.toBuffer(SIGNATURE)
+      
+        const signatureIsValid = crypto.createVerify('sha256')
+          .update(signatureBaseBuffer)
+          .verify(certificate, signatureBuffer)
+      
+        if (!signatureIsValid) 
+            throw new Error('Failed to verify the signature!')
+
+        response.verified = true;
+
     }
 
     return response
