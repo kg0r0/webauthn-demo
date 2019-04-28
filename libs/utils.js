@@ -5,9 +5,6 @@ const jsrsasign = require('jsrsasign');
 const elliptic = require('elliptic');
 const NodeRSA = require('node-rsa');
 
-const USER_PRESENTED = 0x01;
-const USER_VERIFIED = 0x04;
-
 const gsr2 = 'MIIDujCCAqKgAwIBAgILBAAAAAABD4Ym5g0wDQYJKoZIhvcNAQEFBQAwTDEgMB4GA1UECxMXR2xvYmFsU2lnbiBSb290IENBIC0gUjIxEzARBgNVBAoTCkdsb2JhbFNpZ24xEzARBgNVBAMTCkdsb2JhbFNpZ24wHhcNMDYxMjE1MDgwMDAwWhcNMjExMjE1MDgwMDAwWjBMMSAwHgYDVQQLExdHbG9iYWxTaWduIFJvb3QgQ0EgLSBSMjETMBEGA1UEChMKR2xvYmFsU2lnbjETMBEGA1UEAxMKR2xvYmFsU2lnbjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKbPJA6+Lm8omUVCxKs+IVSbC9N/hHD6ErPLv4dfxn+G07IwXNb9rfF73OX4YJYJkhD10FPe+3t+c4isUoh7SqbKSaZeqKeMWhG8eoLrvozps6yWJQeXSpkqBy+0Hne/ig+1AnwblrjFuTosvNYSuetZfeLQBoZfXklqtTleiDTsvHgMCJiEbKjNS7SgfQx5TfC4LcshytVsW33hoCmEofnTlEnLJGKRILzdC9XZzPnqJworc5HGnRusyMvo4KD0L5CLTfuwNhv2GXqF4G3yYROIXJ/gkwpRl4pazq+r1feqCapgvdzZX99yqWATXgAByUr6P6TqBwMhAo6CygPCm48CAwEAAaOBnDCBmTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUm+IHV2ccHsBqBt5ZtJot39wZhi4wNgYDVR0fBC8wLTAroCmgJ4YlaHR0cDovL2NybC5nbG9iYWxzaWduLm5ldC9yb290LXIyLmNybDAfBgNVHSMEGDAWgBSb4gdXZxwewGoG3lm0mi3f3BmGLjANBgkqhkiG9w0BAQUFAAOCAQEAmYFThxxol4aR7OBKuEQLq4GsJ0/WwbgcQ3izDJr86iw8bmEbTUsp9Z8FHSbBuOmDAGJFtqkIk7mpM0sYmsL4h4hO291xNBrBVNpGP+DTKqttVCL1OmLNIG+6KYnX3ZHu01yiPqFbQfXf5WRDLenVOavSot+3i9DAgBkcRcAtjOj4LaR0VknFBbVPFd5uRHg5h6h+u/N5GJG79G+dwfCMNYxdAfvDbbnvRG15RjF+Cv6pgsH/76tuIMRQyV+dTZsXjAzlAcmgQWpzU/qlULRuJQ/7TBj0/VLZjmmx6BEP3ojY+x1J96relc8geMJgEtslQIxq/H5COEBkEveegeGTLg=='
 
 const COSEKEYS = {
@@ -64,13 +61,13 @@ const COSEALGHASH = {
  * @param  {String} publicKey - PEM encoded public key
  * @return {Boolean}
  */
-let verifySignature = (signature, data, publicKey) => {
+const verifySignature = (signature, data, publicKey) => {
     return crypto.createVerify('SHA256')
         .update(data)
         .verify(publicKey, signature);
 }
 
-let base64ToPem = (b64cert) => {
+const base64ToPem = (b64cert) => {
     let pemcert = '';
     for (let i = 0; i < b64cert.length; i += 64)
         pemcert += b64cert.slice(i, i + 64) + '\n';
@@ -78,7 +75,12 @@ let base64ToPem = (b64cert) => {
     return '-----BEGIN CERTIFICATE-----\n' + pemcert + '-----END CERTIFICATE-----';
 }
 
-let verifyBase64Url = (b64UrlString) => {
+/**
+ * Takes string and tries to verify base64 url encoded. 
+ * @param  {String} b64UrlString 
+ * @return {Boolean}
+ */
+const verifyBase64Url = (b64UrlString) => {
     if (b64UrlString.indexOf('+') !== -1) {
         return false
     } else if (b64UrlString.indexOf('/') !== -1) {
@@ -89,10 +91,10 @@ let verifyBase64Url = (b64UrlString) => {
     return true;
 }
 
-let verifyUserVerification = (flags, userVerification) => {
+const verifyUserVerification = (flags, userVerification) => {
     switch (userVerification) {
         case 'required':
-            if (!(flags & USER_VERIFIED))
+            if (!flags.uv)
                 throw new Error('User was NOT verified durring authentication!');
 
             break;
@@ -108,29 +110,29 @@ let verifyUserVerification = (flags, userVerification) => {
     return;
 }
 
-let validateCertificatePath = (certificates) => {
+const validateCertificatePath = (certificates) => {
     if ((new Set(certificates)).size !== certificates.length) 
         throw new Error('Failed to validate certificates path! Dublicate certificates detected!')
   
     for (let i = 0; i < certificates.length; i++) {
-      let subjectPem = certificates[i]
-      let subjectCert = new jsrsasign.X509()
+      const subjectPem = certificates[i]
+      const subjectCert = new jsrsasign.X509()
       subjectCert.readCertPEM(subjectPem)
   
       let issuerPem = ''
       if (i + 1 >= certificates.length) { issuerPem = subjectPem } else { issuerPem = certificates[i + 1] }
   
-      let issuerCert = new jsrsasign.X509()
+      const issuerCert = new jsrsasign.X509()
       issuerCert.readCertPEM(issuerPem)
   
       if (subjectCert.getIssuerString() !== issuerCert.getSubjectString())
         throw new Error('Failed to validate certificate path! Issuers dont match!')
   
-      let subjectCertStruct = jsrsasign.ASN1HEX.getTLVbyList(subjectCert.hex, 0, [0])
-      let algorithm = subjectCert.getSignatureAlgorithmField()
-      let signatureHex = subjectCert.getSignatureValueHex()
+      const subjectCertStruct = jsrsasign.ASN1HEX.getTLVbyList(subjectCert.hex, 0, [0])
+      const algorithm = subjectCert.getSignatureAlgorithmField()
+      const signatureHex = subjectCert.getSignatureValueHex()
   
-      let Signature = new jsrsasign.crypto.Signature({ alg: algorithm })
+      const Signature = new jsrsasign.crypto.Signature({ alg: algorithm })
       Signature.init(issuerPem)
       Signature.updateHex(subjectCertStruct)
   
@@ -141,12 +143,12 @@ let validateCertificatePath = (certificates) => {
     return true
   }
 
-var getCertificateInfo = (certificate) => {
-    let subjectCert = new jsrsasign.X509();
+const getCertificateInfo = (certificate) => {
+    const subjectCert = new jsrsasign.X509();
     subjectCert.readCertPEM(certificate);
 
-    let subjectString = subjectCert.getSubjectString();
-    let subjectParts = subjectString.slice(1).split('/');
+    const subjectString = subjectCert.getSubjectString();
+    const subjectParts = subjectString.slice(1).split('/');
 
     let subject = {};
     for (let field of subjectParts) {
@@ -154,8 +156,8 @@ var getCertificateInfo = (certificate) => {
         subject[kv[0]] = kv[1];
     }
 
-    let version = subjectCert.version;
-    let basicConstraintsCA = !!subjectCert.getExtBasicConstraints().cA;
+    const version = subjectCert.version;
+    const basicConstraintsCA = !!subjectCert.getExtBasicConstraints().cA;
 
     return {
         subject, version, basicConstraintsCA
@@ -168,10 +170,10 @@ var getCertificateInfo = (certificate) => {
  * @param  {Number} len - length of the buffer
  * @return {String}     - base64url random buffer
  */
-let randomBase64URLBuffer = (len) => {
+const randomBase64URLBuffer = (len) => {
     len = len || 32;
 
-    let buff = crypto.randomBytes(len);
+    const buff = crypto.randomBytes(len);
 
     return base64url(buff);
 }
@@ -184,7 +186,7 @@ let randomBase64URLBuffer = (len) => {
  * @param  {String} attestation    - attestation
  * @return {MakePublicKeyCredentialOptions} - server encoded make credentials request
  */
-let generateServerMakeCredRequest = (username, displayName, id, attestation) => {
+const generateServerMakeCredRequest = (username, displayName, id, attestation) => {
     return {
         challenge: randomBase64URLBuffer(32),
 
@@ -213,7 +215,7 @@ let generateServerMakeCredRequest = (username, displayName, id, attestation) => 
  * @param  {Array} authenticators              - list of registered authenticators
  * @return {PublicKeyCredentialRequestOptions} - server encoded get assertion request
  */
-let generateServerGetAssertion = (authenticators) => {
+const generateServerGetAssertion = (authenticators) => {
     let allowCredentials = [];
     for (let authr of authenticators) {
         allowCredentials.push({
@@ -227,7 +229,13 @@ let generateServerGetAssertion = (authenticators) => {
     }
 }
 
-let hash = (alg, data) => {
+/**
+ * Generates hashed data
+ * @param  {String} alg 
+ * @param  {String} data 
+ * @return {Boolean}
+ */
+const hash = (alg, data) => {
     return crypto.createHash(alg).update(data).digest();
 }
 
@@ -236,7 +244,7 @@ let hash = (alg, data) => {
  * @param  {Buffer} COSEPublicKey - COSE encoded public key
  * @return {Buffer}               - RAW PKCS encoded public key
  */
-let COSEECDHAtoPKCS = (COSEPublicKey) => {
+const COSEECDHAtoPKCS = (COSEPublicKey) => {
     /* 
        +------+-------+-------+---------+----------------------------------+
        | name | key   | label | type    | description                      |
@@ -254,10 +262,10 @@ let COSEECDHAtoPKCS = (COSEPublicKey) => {
        +------+-------+-------+---------+----------------------------------+
     */
 
-    let coseStruct = cbor.decodeAllSync(COSEPublicKey)[0];
-    let tag = Buffer.from([0x04]);
-    let x = coseStruct.get(-2);
-    let y = coseStruct.get(-3);
+    const coseStruct = cbor.decodeAllSync(COSEPublicKey)[0];
+    const tag = Buffer.from([0x04]);
+    const x = coseStruct.get(-2);
+    const y = coseStruct.get(-3);
 
     return Buffer.concat([tag, x, y])
 }
@@ -267,7 +275,7 @@ let COSEECDHAtoPKCS = (COSEPublicKey) => {
  * @param  {Buffer} buffer - Cert or PubKey buffer
  * @return {String}             - PEM
  */
-let ASN1toPEM = (pkBuffer) => {
+const ASN1toPEM = (pkBuffer) => {
     if (!Buffer.isBuffer(pkBuffer))
         throw new Error("ASN1toPEM: pkBuffer must be Buffer.")
 
@@ -295,7 +303,7 @@ let ASN1toPEM = (pkBuffer) => {
         type = 'CERTIFICATE';
     }
 
-    let b64cert = pkBuffer.toString('base64');
+    const b64cert = pkBuffer.toString('base64');
 
     let PEMKey = '';
     for (let i = 0; i < Math.ceil(b64cert.length / 64); i++) {
@@ -309,11 +317,16 @@ let ASN1toPEM = (pkBuffer) => {
     return PEMKey
 }
 
-var parseAuthData = (buffer) => {
-    let rpIdHash = buffer.slice(0, 32); buffer = buffer.slice(32);
-    let flagsBuf = buffer.slice(0, 1); buffer = buffer.slice(1);
-    let flagsInt = flagsBuf[0];
-    let flags = {
+/**
+ * Parses authenticatorData buffer.
+ * @param  {Buffer} buffer - authenticatorData buffer
+ * @return {Object}        - parsed authenticatorData struct
+ */
+const parseAuthData = (buffer) => {
+    const rpIdHash = buffer.slice(0, 32); buffer = buffer.slice(32);
+    const flagsBuf = buffer.slice(0, 1); buffer = buffer.slice(1);
+    const flagsInt = flagsBuf[0];
+    const flags = {
         up: !!(flagsInt & 0x01),
         uv: !!(flagsInt & 0x04),
         at: !!(flagsInt & 0x40),
@@ -321,58 +334,44 @@ var parseAuthData = (buffer) => {
         flagsInt
     }
 
-    let counterBuf = buffer.slice(0, 4); buffer = buffer.slice(4);
-    let counter = counterBuf.readUInt32BE(0);
+    const counterBuf = buffer.slice(0, 4); buffer = buffer.slice(4);
+    const counter = counterBuf.readUInt32BE(0);
 
     let aaguid = undefined;
     let credID = undefined;
+    let credIDLenBuf = undefined;
     let COSEPublicKey = undefined;
 
     if (flags.at) {
         aaguid = buffer.slice(0, 16); buffer = buffer.slice(16);
-        let credIDLenBuf = buffer.slice(0, 2); buffer = buffer.slice(2);
-        let credIDLen = credIDLenBuf.readUInt16BE(0);
+        credIDLenBuf = buffer.slice(0, 2); buffer = buffer.slice(2);
+        const credIDLen = credIDLenBuf.readUInt16BE(0);
         credID = buffer.slice(0, credIDLen); buffer = buffer.slice(credIDLen);
         COSEPublicKey = buffer;
     }
 
-    return { rpIdHash, flagsBuf, flags, counter, counterBuf, aaguid, credID, COSEPublicKey }
+    return { rpIdHash, flagsBuf, flags, counter, counterBuf, aaguid, credID,  credIDLenBuf, COSEPublicKey }
 }
 
 /**
- * Parses authenticatorData buffer.
- * @param  {Buffer} buffer - authenticatorData buffer
- * @return {Object}        - parsed authenticatorData struct
+ * Tries to verify AuthenticatorAttestationResponse
+ * @param  {Object} webAuthnResponse 
+ * @return {Object}                   - verification result  
  */
-let parseMakeCredAuthData = (buffer) => {
-    let rpIdHash = buffer.slice(0, 32); buffer = buffer.slice(32);
-    let flagsBuf = buffer.slice(0, 1); buffer = buffer.slice(1);
-    let flags = flagsBuf[0];
-    let counterBuf = buffer.slice(0, 4); buffer = buffer.slice(4);
-    let counter = counterBuf.readUInt32BE(0);
-    let aaguid = buffer.slice(0, 16); buffer = buffer.slice(16);
-    let credIDLenBuf = buffer.slice(0, 2); buffer = buffer.slice(2);
-    let credIDLen = credIDLenBuf.readUInt16BE(0);
-    let credID = buffer.slice(0, credIDLen); buffer = buffer.slice(credIDLen);
-    let COSEPublicKey = buffer;
-
-    return { rpIdHash, flagsBuf, flags, counter, counterBuf, aaguid, credID, credIDLenBuf, COSEPublicKey }
-}
-
-let verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
-    let attestationBuffer = base64url.toBuffer(webAuthnResponse.response.attestationObject);
-    let ctapMakeCredResp = cbor.decodeAllSync(attestationBuffer)[0];
+const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
+    const attestationBuffer = base64url.toBuffer(webAuthnResponse.response.attestationObject);
+    const attestationStruct = cbor.decodeAllSync(attestationBuffer)[0];
 
     let response = { 'verified': false };
-    if (ctapMakeCredResp.fmt === 'none') {
-        let authrDataStruct = parseMakeCredAuthData(ctapMakeCredResp.authData);
-        if (ctapMakeCredResp.attStmt.x5c)
+    if (attestationStruct.fmt === 'none') {
+        const authrDataStruct = parseAuthData(attestationStruct.authData);
+        if (attestationStruct.attStmt.x5c)
             throw new Error('Send attestation FULL packed with fmt set none.');
 
-        if (!(authrDataStruct.flags & USER_PRESENTED))
+        if (!authrDataStruct.flags.up)
             throw new Error('User was NOT presented durring authentication!');
 
-        let publicKey = COSEECDHAtoPKCS(authrDataStruct.COSEPublicKey)
+        const publicKey = COSEECDHAtoPKCS(authrDataStruct.COSEPublicKey)
         response.verified = true;
         if (response.verified) {
             response.authrInfo = {
@@ -382,22 +381,22 @@ let verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
                 credID: base64url.encode(authrDataStruct.credID)
             }
         }
-    } else if (ctapMakeCredResp.fmt === 'fido-u2f') {
-        let authrDataStruct = parseMakeCredAuthData(ctapMakeCredResp.authData);
+    } else if (attestationStruct.fmt === 'fido-u2f') {
+        const authrDataStruct = parseAuthData(attestationStruct.authData);
 
-        if (!(authrDataStruct.flags & USER_PRESENTED))
+        if (!(authrDataStruct.flags.up))
             throw new Error('User was NOT presented durring authentication!');
 
         if (Number(authrDataStruct.aaguid.toString('hex')) !== 0)
             throw new Error('authData.AAGUID is not 0x00');
 
-        let clientDataHash = hash('SHA256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON))
-        let reservedByte = Buffer.from([0x00]);
-        let publicKey = COSEECDHAtoPKCS(authrDataStruct.COSEPublicKey)
-        let signatureBase = Buffer.concat([reservedByte, authrDataStruct.rpIdHash, clientDataHash, authrDataStruct.credID, publicKey]);
+        const clientDataHash = hash('SHA256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON))
+        const reservedByte = Buffer.from([0x00]);
+        const publicKey = COSEECDHAtoPKCS(authrDataStruct.COSEPublicKey)
+        const signatureBase = Buffer.concat([reservedByte, authrDataStruct.rpIdHash, clientDataHash, authrDataStruct.credID, publicKey]);
 
-        let PEMCertificate = ASN1toPEM(ctapMakeCredResp.attStmt.x5c[0]);
-        let signature = ctapMakeCredResp.attStmt.sig;
+        const PEMCertificate = ASN1toPEM(attestationStruct.attStmt.x5c[0]);
+        const signature = attestationStruct.attStmt.sig;
 
         response.verified = verifySignature(signature, signatureBase, PEMCertificate)
 
@@ -409,20 +408,20 @@ let verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
                 credID: base64url.encode(authrDataStruct.credID)
             }
         }
-    } else if (ctapMakeCredResp.fmt === 'packed') {
+    } else if (attestationStruct.fmt === 'packed') {
         response = verifyPackedAttestation(webAuthnResponse);
-    } else if (ctapMakeCredResp.fmt === 'android-safetynet') {
-        const jwsString = ctapMakeCredResp.attStmt.response.toString('utf8')
+    } else if (attestationStruct.fmt === 'android-safetynet') {
+        const jwsString = attestationStruct.attStmt.response.toString('utf8')
         const jwsParts = jwsString.split('.')
         const HEADER = JSON.parse(base64url.decode(jwsParts[0]))
         const PAYLOAD = JSON.parse(base64url.decode(jwsParts[1]))
         const SIGNATURE = jwsParts[2]
         const clientDataHashBuf = hash('sha256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON))
-        const nonceBase = Buffer.concat([ctapMakeCredResp.authData, clientDataHashBuf])
+        const nonceBase = Buffer.concat([attestationStruct.authData, clientDataHashBuf])
         const nonceBuffer = hash('sha256', nonceBase)
         const expectedNonce = nonceBuffer.toString('base64')
 
-        if (!ctapMakeCredResp.attStmt.ver)
+        if (!attestationStruct.attStmt.ver)
             throw new Error('ver field is empty.');
 
         if (PAYLOAD.nonce !== expectedNonce)
@@ -473,7 +472,7 @@ let verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
  * @param  {Array} authenticators - list of authenticators
  * @return {Object}               - found authenticator
  */
-let findAuthr = (credID, authenticators) => {
+const findAuthr = (credID, authenticators) => {
     for (let authr of authenticators) {
         if (authr.credID === credID)
             return authr
@@ -483,22 +482,14 @@ let findAuthr = (credID, authenticators) => {
 }
 
 /**
- * Parses AuthenticatorData from GetAssertion response
- * @param  {Buffer} buffer - Auth data buffer
- * @return {Object}        - parsed authenticatorData struct
+ * Tries to verify AuthenticatorAssertionResponse
+ * @param  {Object} webAuthnResponse 
+ * @param  {Array} authenticators
+ * @param  {String} userVerification
+ * @return {Object}                   - verification result  
  */
-let parseGetAssertAuthData = (buffer) => {
-    let rpIdHash = buffer.slice(0, 32); buffer = buffer.slice(32);
-    let flagsBuf = buffer.slice(0, 1); buffer = buffer.slice(1);
-    let flags = flagsBuf[0];
-    let counterBuf = buffer.slice(0, 4); buffer = buffer.slice(4);
-    let counter = counterBuf.readUInt32BE(0);
-
-    return { rpIdHash, flagsBuf, flags, counter, counterBuf }
-}
-
-let verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, userVerification) => {
-    let authr = findAuthr(webAuthnResponse.body.id, authenticators);
+const verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, userVerification) => {
+    const authr = findAuthr(webAuthnResponse.body.id, authenticators);
 
     if (!verifyBase64Url(webAuthnResponse.body.response.authenticatorData))
         throw new Error('AuthenticatorData is not base64url encoded');
@@ -509,20 +500,20 @@ let verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, us
     if (!verifyBase64Url(webAuthnResponse.body.response.signature))
         throw new Error('Signature is not base64url encoded');
 
-    let authenticatorData = base64url.toBuffer(webAuthnResponse.body.response.authenticatorData)
+    const authenticatorData = base64url.toBuffer(webAuthnResponse.body.response.authenticatorData)
 
     let response = { 'verified': false }
-    let authrDataStruct = parseGetAssertAuthData(authenticatorData)
+    const authrDataStruct = parseAuthData(authenticatorData)
 
     if(Buffer.compare(authrDataStruct.rpIdHash, hash('sha256', Buffer.from(webAuthnResponse.hostname))) !== 0)
         throw new Error('rpIdHash don\'t match!')
 
     verifyUserVerification(authrDataStruct.flags, userVerification);
 
-    let clientDataHash = hash('sha256', base64url.toBuffer(webAuthnResponse.body.response.clientDataJSON))
-    let signatureBase = Buffer.concat([authenticatorData, clientDataHash])
-    let publicKey = ASN1toPEM(base64url.toBuffer(authr.publicKey))
-    let signature = base64url.toBuffer(webAuthnResponse.body.response.signature)
+    const clientDataHash = hash('sha256', base64url.toBuffer(webAuthnResponse.body.response.clientDataJSON))
+    const signatureBase = Buffer.concat([authenticatorData, clientDataHash])
+    const publicKey = ASN1toPEM(base64url.toBuffer(authr.publicKey))
+    const signature = base64url.toBuffer(webAuthnResponse.body.response.signature)
     response.verified = verifySignature(signature, signatureBase, publicKey)
 
     if (response.verified) {
@@ -535,11 +526,11 @@ let verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, us
 
 }
 
-let verifyPackedAttestation = (webAuthnResponse) => {
+const verifyPackedAttestation = (webAuthnResponse) => {
     let response = { 'verified': false };
-    let attestationBuffer = base64url.toBuffer(webAuthnResponse.response.attestationObject);
-    let attestationStruct = cbor.decodeAllSync(attestationBuffer)[0];
-    let authDataStruct = parseAuthData(attestationStruct.authData);
+    const attestationBuffer = base64url.toBuffer(webAuthnResponse.response.attestationObject);
+    const attestationStruct = cbor.decodeAllSync(attestationBuffer)[0];
+    const authDataStruct = parseAuthData(attestationStruct.authData);
 
     if (!authDataStruct.flags.up)
         throw new Error('User was NOT presented durring authentication!');
@@ -554,17 +545,17 @@ let verifyPackedAttestation = (webAuthnResponse) => {
     if (typeof attestationStruct.attStmt.alg !== 'number')
         throw new Error('attStmt.alg is Not a Number');
 
-    let clientDataHashBuf = hash('sha256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON));
-    let signatureBaseBuffer = Buffer.concat([attestationStruct.authData, clientDataHashBuf]);
+    const clientDataHashBuf = hash('sha256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON));
+    const signatureBaseBuffer = Buffer.concat([attestationStruct.authData, clientDataHashBuf]);
 
-    let signatureBuffer = attestationStruct.attStmt.sig;
+    const signatureBuffer = attestationStruct.attStmt.sig;
     let publicKey = undefined;
 
     if (attestationStruct.attStmt.x5c) {
         /* ----- Verify FULL attestation ----- */
         publicKey = base64url.encode(COSEECDHAtoPKCS(authDataStruct.COSEPublicKey));
-        let leafCert = base64ToPem(attestationStruct.attStmt.x5c[0].toString('base64'));
-        let certInfo = getCertificateInfo(leafCert);
+        const leafCert = base64ToPem(attestationStruct.attStmt.x5c[0].toString('base64'));
+        const certInfo = getCertificateInfo(leafCert);
 
         if (certInfo.subject.OU !== 'Authenticator Attestation')
             throw new Error('Batch certificate OU MUST be set strictly to "Authenticator Attestation"!');
@@ -592,30 +583,29 @@ let verifyPackedAttestation = (webAuthnResponse) => {
         throw new Error('ECDAA IS NOT SUPPORTED YET!');
     } else {
         /* ----- Verify SURROGATE attestation ----- */
-        let pubKeyCose = cbor.decodeAllSync(authDataStruct.COSEPublicKey)[0];
-        let hashAlg = COSEALGHASH[pubKeyCose.get(COSEKEYS.alg)];
+        const pubKeyCose = cbor.decodeAllSync(authDataStruct.COSEPublicKey)[0];
+        const hashAlg = COSEALGHASH[pubKeyCose.get(COSEKEYS.alg)];
         if (pubKeyCose.get(COSEKEYS.kty) === COSEKTY.EC2) {
-            let x = pubKeyCose.get(COSEKEYS.x);
-            let y = pubKeyCose.get(COSEKEYS.y);
-            let ansiKey = Buffer.concat([Buffer.from([0x04]), x, y]);
-            let signatureBaseHash = hash(hashAlg, signatureBaseBuffer);
-            let ec = new elliptic.ec(COSECRV[pubKeyCose.get(COSEKEYS.crv)]);
-            let key = ec.keyFromPublic(ansiKey);
+            const x = pubKeyCose.get(COSEKEYS.x);
+            const y = pubKeyCose.get(COSEKEYS.y);
+            const ansiKey = Buffer.concat([Buffer.from([0x04]), x, y]);
+            const signatureBaseHash = hash(hashAlg, signatureBaseBuffer);
+            const ec = new elliptic.ec(COSECRV[pubKeyCose.get(COSEKEYS.crv)]);
+            const key = ec.keyFromPublic(ansiKey);
             publicKey = base64url.encode(ansiKey);
             response.verified = key.verify(signatureBaseHash, signatureBuffer)
         } else if (pubKeyCose.get(COSEKEYS.kty) === COSEKTY.RSA) {
-            let signingScheme = COSERSASCHEME[pubKeyCose.get(COSEKEYS.alg)];
-            let key = new NodeRSA(undefined, { signingScheme });
+            const signingScheme = COSERSASCHEME[pubKeyCose.get(COSEKEYS.alg)];
+            const key = new NodeRSA(undefined, { signingScheme });
             key.importKey({
                 n: pubKeyCose.get(COSEKEYS.n),
                 e: 65537,
             }, 'components-public');
             response.verified = key.verify(signatureBaseBuffer, signatureBuffer)
         } else if (pubKeyCose.get(COSEKEYS.kty) === COSEKTY.OKP) {
-            let x = pubKeyCose.get(COSEKEYS.x);
-            let signatureBaseHash = hash(hashAlg, signatureBaseBuffer);
-
-            let key = new elliptic.eddsa('ed25519');
+            const x = pubKeyCose.get(COSEKEYS.x);
+            const signatureBaseHash = hash(hashAlg, signatureBaseBuffer);
+            const key = new elliptic.eddsa('ed25519');
             key.keyFromPublic(x)
             publicKey = key;
             response.verified = key.verify(signatureBaseHash, signatureBuffer)

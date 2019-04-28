@@ -57,7 +57,7 @@ router.post('/result', (request, response) => {
         return
     }
 
-    let clientData   = JSON.parse(base64url.decode(request.body.response.clientDataJSON));
+    const clientData   = JSON.parse(base64url.decode(request.body.response.clientDataJSON));
 
     /* Check challenge... */
     if(clientData.challenge !== request.session.challenge) {
