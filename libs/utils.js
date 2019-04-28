@@ -361,12 +361,12 @@ const parseMakeCredAuthData = (buffer) => {
 
 const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
     const attestationBuffer = base64url.toBuffer(webAuthnResponse.response.attestationObject);
-    const ctapMakeCredResp = cbor.decodeAllSync(attestationBuffer)[0];
+    const attestationStruct = cbor.decodeAllSync(attestationBuffer)[0];
 
     let response = { 'verified': false };
-    if (ctapMakeCredResp.fmt === 'none') {
-        const authrDataStruct = parseMakeCredAuthData(ctapMakeCredResp.authData);
-        if (ctapMakeCredResp.attStmt.x5c)
+    if (attestationStruct.fmt === 'none') {
+        const authrDataStruct = parseMakeCredAuthData(attestationStruct.authData);
+        if (attestationStruct.attStmt.x5c)
             throw new Error('Send attestation FULL packed with fmt set none.');
 
         if (!(authrDataStruct.flags & USER_PRESENTED))
@@ -382,8 +382,8 @@ const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
                 credID: base64url.encode(authrDataStruct.credID)
             }
         }
-    } else if (ctapMakeCredResp.fmt === 'fido-u2f') {
-        const authrDataStruct = parseMakeCredAuthData(ctapMakeCredResp.authData);
+    } else if (attestationStruct.fmt === 'fido-u2f') {
+        const authrDataStruct = parseMakeCredAuthData(attestationStruct.authData);
 
         if (!(authrDataStruct.flags & USER_PRESENTED))
             throw new Error('User was NOT presented durring authentication!');
@@ -396,8 +396,8 @@ const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
         const publicKey = COSEECDHAtoPKCS(authrDataStruct.COSEPublicKey)
         const signatureBase = Buffer.concat([reservedByte, authrDataStruct.rpIdHash, clientDataHash, authrDataStruct.credID, publicKey]);
 
-        const PEMCertificate = ASN1toPEM(ctapMakeCredResp.attStmt.x5c[0]);
-        const signature = ctapMakeCredResp.attStmt.sig;
+        const PEMCertificate = ASN1toPEM(attestationStruct.attStmt.x5c[0]);
+        const signature = attestationStruct.attStmt.sig;
 
         response.verified = verifySignature(signature, signatureBase, PEMCertificate)
 
@@ -409,20 +409,20 @@ const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
                 credID: base64url.encode(authrDataStruct.credID)
             }
         }
-    } else if (ctapMakeCredResp.fmt === 'packed') {
+    } else if (attestationStruct.fmt === 'packed') {
         response = verifyPackedAttestation(webAuthnResponse);
-    } else if (ctapMakeCredResp.fmt === 'android-safetynet') {
-        const jwsString = ctapMakeCredResp.attStmt.response.toString('utf8')
+    } else if (attestationStruct.fmt === 'android-safetynet') {
+        const jwsString = attestationStruct.attStmt.response.toString('utf8')
         const jwsParts = jwsString.split('.')
         const HEADER = JSON.parse(base64url.decode(jwsParts[0]))
         const PAYLOAD = JSON.parse(base64url.decode(jwsParts[1]))
         const SIGNATURE = jwsParts[2]
         const clientDataHashBuf = hash('sha256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON))
-        const nonceBase = Buffer.concat([ctapMakeCredResp.authData, clientDataHashBuf])
+        const nonceBase = Buffer.concat([attestationStruct.authData, clientDataHashBuf])
         const nonceBuffer = hash('sha256', nonceBase)
         const expectedNonce = nonceBuffer.toString('base64')
 
-        if (!ctapMakeCredResp.attStmt.ver)
+        if (!attestationStruct.attStmt.ver)
             throw new Error('ver field is empty.');
 
         if (PAYLOAD.nonce !== expectedNonce)
