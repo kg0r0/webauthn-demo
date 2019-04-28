@@ -14,8 +14,8 @@ router.post('/options', (request, response) => {
         return
     }
 
-    let username = request.body.username;
-    let displayName     = request.body.displayName;
+    const username = request.body.username;
+    const displayName     = request.body.displayName;
     let excludeCredentials;
 
     if(database[username] && database[username].registered) {
@@ -66,8 +66,8 @@ router.post('/result', (request, response) => {
         return
     }
 
-    let webauthnResp = request.body
-    let clientData   = JSON.parse(base64url.decode(webauthnResp.response.clientDataJSON));
+    const webauthnResp = request.body
+    const clientData   = JSON.parse(base64url.decode(webauthnResp.response.clientDataJSON));
 
     /* Check challenge... */
     if(clientData.challenge !== request.session.challenge) {
