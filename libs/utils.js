@@ -5,9 +5,6 @@ const jsrsasign = require('jsrsasign');
 const elliptic = require('elliptic');
 const NodeRSA = require('node-rsa');
 
-const USER_PRESENTED = 0x01;
-const USER_VERIFIED = 0x04;
-
 const gsr2 = 'MIIDujCCAqKgAwIBAgILBAAAAAABD4Ym5g0wDQYJKoZIhvcNAQEFBQAwTDEgMB4GA1UECxMXR2xvYmFsU2lnbiBSb290IENBIC0gUjIxEzARBgNVBAoTCkdsb2JhbFNpZ24xEzARBgNVBAMTCkdsb2JhbFNpZ24wHhcNMDYxMjE1MDgwMDAwWhcNMjExMjE1MDgwMDAwWjBMMSAwHgYDVQQLExdHbG9iYWxTaWduIFJvb3QgQ0EgLSBSMjETMBEGA1UEChMKR2xvYmFsU2lnbjETMBEGA1UEAxMKR2xvYmFsU2lnbjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKbPJA6+Lm8omUVCxKs+IVSbC9N/hHD6ErPLv4dfxn+G07IwXNb9rfF73OX4YJYJkhD10FPe+3t+c4isUoh7SqbKSaZeqKeMWhG8eoLrvozps6yWJQeXSpkqBy+0Hne/ig+1AnwblrjFuTosvNYSuetZfeLQBoZfXklqtTleiDTsvHgMCJiEbKjNS7SgfQx5TfC4LcshytVsW33hoCmEofnTlEnLJGKRILzdC9XZzPnqJworc5HGnRusyMvo4KD0L5CLTfuwNhv2GXqF4G3yYROIXJ/gkwpRl4pazq+r1feqCapgvdzZX99yqWATXgAByUr6P6TqBwMhAo6CygPCm48CAwEAAaOBnDCBmTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUm+IHV2ccHsBqBt5ZtJot39wZhi4wNgYDVR0fBC8wLTAroCmgJ4YlaHR0cDovL2NybC5nbG9iYWxzaWduLm5ldC9yb290LXIyLmNybDAfBgNVHSMEGDAWgBSb4gdXZxwewGoG3lm0mi3f3BmGLjANBgkqhkiG9w0BAQUFAAOCAQEAmYFThxxol4aR7OBKuEQLq4GsJ0/WwbgcQ3izDJr86iw8bmEbTUsp9Z8FHSbBuOmDAGJFtqkIk7mpM0sYmsL4h4hO291xNBrBVNpGP+DTKqttVCL1OmLNIG+6KYnX3ZHu01yiPqFbQfXf5WRDLenVOavSot+3i9DAgBkcRcAtjOj4LaR0VknFBbVPFd5uRHg5h6h+u/N5GJG79G+dwfCMNYxdAfvDbbnvRG15RjF+Cv6pgsH/76tuIMRQyV+dTZsXjAzlAcmgQWpzU/qlULRuJQ/7TBj0/VLZjmmx6BEP3ojY+x1J96relc8geMJgEtslQIxq/H5COEBkEveegeGTLg=='
 
 const COSEKEYS = {
@@ -78,6 +75,11 @@ const base64ToPem = (b64cert) => {
     return '-----BEGIN CERTIFICATE-----\n' + pemcert + '-----END CERTIFICATE-----';
 }
 
+/**
+ * Takes string and tries to verify base64 url encoded. 
+ * @param  {String} b64UrlString 
+ * @return {Boolean}
+ */
 const verifyBase64Url = (b64UrlString) => {
     if (b64UrlString.indexOf('+') !== -1) {
         return false
@@ -92,7 +94,7 @@ const verifyBase64Url = (b64UrlString) => {
 const verifyUserVerification = (flags, userVerification) => {
     switch (userVerification) {
         case 'required':
-            if (!(flags & USER_VERIFIED))
+            if (!flags.uv)
                 throw new Error('User was NOT verified durring authentication!');
 
             break;
@@ -227,6 +229,12 @@ const generateServerGetAssertion = (authenticators) => {
     }
 }
 
+/**
+ * Generates hashed data
+ * @param  {String} alg 
+ * @param  {String} data 
+ * @return {Boolean}
+ */
 const hash = (alg, data) => {
     return crypto.createHash(alg).update(data).digest();
 }
@@ -309,6 +317,11 @@ const ASN1toPEM = (pkBuffer) => {
     return PEMKey
 }
 
+/**
+ * Parses authenticatorData buffer.
+ * @param  {Buffer} buffer - authenticatorData buffer
+ * @return {Object}        - parsed authenticatorData struct
+ */
 const parseAuthData = (buffer) => {
     const rpIdHash = buffer.slice(0, 32); buffer = buffer.slice(32);
     const flagsBuf = buffer.slice(0, 1); buffer = buffer.slice(1);
@@ -326,50 +339,36 @@ const parseAuthData = (buffer) => {
 
     let aaguid = undefined;
     let credID = undefined;
+    let credIDLenBuf = undefined;
     let COSEPublicKey = undefined;
 
     if (flags.at) {
         aaguid = buffer.slice(0, 16); buffer = buffer.slice(16);
-        const credIDLenBuf = buffer.slice(0, 2); buffer = buffer.slice(2);
+        credIDLenBuf = buffer.slice(0, 2); buffer = buffer.slice(2);
         const credIDLen = credIDLenBuf.readUInt16BE(0);
         credID = buffer.slice(0, credIDLen); buffer = buffer.slice(credIDLen);
         COSEPublicKey = buffer;
     }
 
-    return { rpIdHash, flagsBuf, flags, counter, counterBuf, aaguid, credID, COSEPublicKey }
+    return { rpIdHash, flagsBuf, flags, counter, counterBuf, aaguid, credID,  credIDLenBuf, COSEPublicKey }
 }
 
 /**
- * Parses authenticatorData buffer.
- * @param  {Buffer} buffer - authenticatorData buffer
- * @return {Object}        - parsed authenticatorData struct
+ * Tries to verify AuthenticatorAttestationResponse
+ * @param  {Object} webAuthnResponse 
+ * @return {Object}                   - verification result  
  */
-const parseMakeCredAuthData = (buffer) => {
-    const rpIdHash = buffer.slice(0, 32); buffer = buffer.slice(32);
-    const flagsBuf = buffer.slice(0, 1); buffer = buffer.slice(1);
-    const flags = flagsBuf[0];
-    const counterBuf = buffer.slice(0, 4); buffer = buffer.slice(4);
-    const counter = counterBuf.readUInt32BE(0);
-    const aaguid = buffer.slice(0, 16); buffer = buffer.slice(16);
-    const credIDLenBuf = buffer.slice(0, 2); buffer = buffer.slice(2);
-    const credIDLen = credIDLenBuf.readUInt16BE(0);
-    const credID = buffer.slice(0, credIDLen); buffer = buffer.slice(credIDLen);
-    const COSEPublicKey = buffer;
-
-    return { rpIdHash, flagsBuf, flags, counter, counterBuf, aaguid, credID, credIDLenBuf, COSEPublicKey }
-}
-
 const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
     const attestationBuffer = base64url.toBuffer(webAuthnResponse.response.attestationObject);
     const attestationStruct = cbor.decodeAllSync(attestationBuffer)[0];
 
     let response = { 'verified': false };
     if (attestationStruct.fmt === 'none') {
-        const authrDataStruct = parseMakeCredAuthData(attestationStruct.authData);
+        const authrDataStruct = parseAuthData(attestationStruct.authData);
         if (attestationStruct.attStmt.x5c)
             throw new Error('Send attestation FULL packed with fmt set none.');
 
-        if (!(authrDataStruct.flags & USER_PRESENTED))
+        if (!authrDataStruct.flags.up)
             throw new Error('User was NOT presented durring authentication!');
 
         const publicKey = COSEECDHAtoPKCS(authrDataStruct.COSEPublicKey)
@@ -383,9 +382,9 @@ const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
             }
         }
     } else if (attestationStruct.fmt === 'fido-u2f') {
-        const authrDataStruct = parseMakeCredAuthData(attestationStruct.authData);
+        const authrDataStruct = parseAuthData(attestationStruct.authData);
 
-        if (!(authrDataStruct.flags & USER_PRESENTED))
+        if (!(authrDataStruct.flags.up))
             throw new Error('User was NOT presented durring authentication!');
 
         if (Number(authrDataStruct.aaguid.toString('hex')) !== 0)
@@ -483,20 +482,12 @@ const findAuthr = (credID, authenticators) => {
 }
 
 /**
- * Parses AuthenticatorData from GetAssertion response
- * @param  {Buffer} buffer - Auth data buffer
- * @return {Object}        - parsed authenticatorData struct
+ * Tries to verify AuthenticatorAssertionResponse
+ * @param  {Object} webAuthnResponse 
+ * @param  {Array} authenticators
+ * @param  {String} userVerification
+ * @return {Object}                   - verification result  
  */
-const parseGetAssertAuthData = (buffer) => {
-    const rpIdHash = buffer.slice(0, 32); buffer = buffer.slice(32);
-    const flagsBuf = buffer.slice(0, 1); buffer = buffer.slice(1);
-    const flags = flagsBuf[0];
-    const counterBuf = buffer.slice(0, 4); buffer = buffer.slice(4);
-    const counter = counterBuf.readUInt32BE(0);
-
-    return { rpIdHash, flagsBuf, flags, counter, counterBuf }
-}
-
 const verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, userVerification) => {
     const authr = findAuthr(webAuthnResponse.body.id, authenticators);
 
@@ -512,7 +503,7 @@ const verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, 
     const authenticatorData = base64url.toBuffer(webAuthnResponse.body.response.authenticatorData)
 
     let response = { 'verified': false }
-    const authrDataStruct = parseGetAssertAuthData(authenticatorData)
+    const authrDataStruct = parseAuthData(authenticatorData)
 
     if(Buffer.compare(authrDataStruct.rpIdHash, hash('sha256', Buffer.from(webAuthnResponse.hostname))) !== 0)
         throw new Error('rpIdHash don\'t match!')
