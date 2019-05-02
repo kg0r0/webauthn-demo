@@ -174,7 +174,6 @@ const getCertificateInfo = (certificate) => {
     }
 }
 
-
 /**
  * Returns base64url encoded buffer of the given length
  * @param  {Number} len - length of the buffer
@@ -565,6 +564,21 @@ const verifyPackedAttestation = (webAuthnResponse) => {
         /* ----- Verify FULL attestation ----- */
         publicKey = base64url.encode(COSEECDHAtoPKCS(authDataStruct.COSEPublicKey));
         const leafCert = base64ToPem(attestationStruct.attStmt.x5c[0].toString('base64'));
+        if (attestationStruct.attStmt.x5c.length > 1) {
+            let certPath = attestationStruct.attStmt.x5c.map((cert) => {
+                cert = cert.toString('base64');
+        
+                let pemcert = '';
+                for(let i = 0; i < cert.length; i += 64)
+                    pemcert += cert.slice(i, i + 64) + '\n';
+        
+                return '-----BEGIN CERTIFICATE-----\n' + pemcert + '-----END CERTIFICATE-----';
+            })
+            console.log('========================')
+            console.log(certPath)
+            console.log('========================')
+             validateCertificatePath(certPath);
+        }
         const certInfo = getCertificateInfo(leafCert);
 
         if (certInfo.subject.OU !== 'Authenticator Attestation')
