@@ -111,23 +111,42 @@ const verifyUserVerification = (flags, userVerification) => {
     return;
 }
 
+const verifyRootCert = (certificate) => {
+    const rootPem = certificate;
+    const rootCert = new jsrsasign.X509()
+    rootCert.readCertPEM(rootPem)
+    if (rootCert.getIssuerString() == rootCert.getSubjectString()) {
+        return true;
+    }
+    return false;
+}
+
 const validateCertificatePath = (certificates) => {
+    if (verifyRootCert(certificates[certificates.length - 1]))
+      throw new Error('x5c contains full chain!')
+
     if ((new Set(certificates)).size !== certificates.length) 
         throw new Error('Failed to validate certificates path! Dublicate certificates detected!')
-  
-    for (let i = 0; i < certificates.length; i++) {
+
+    for (let i = 0; i < certificates.length - 1; i++) {
       const subjectPem = certificates[i]
       const subjectCert = new jsrsasign.X509()
       subjectCert.readCertPEM(subjectPem)
   
-      let issuerPem = ''
-      if (i + 1 >= certificates.length) { issuerPem = subjectPem } else { issuerPem = certificates[i + 1] }
-  
+      const issuerPem = certificates[i + 1]
       const issuerCert = new jsrsasign.X509()
       issuerCert.readCertPEM(issuerPem)
+      const notbefore = ldap2date.parse('20' + issuerCert.getNotBefore()).getTime();
+      const notafter = ldap2date.parse('20' + issuerCert.getNotAfter()).getTime();
+      const now = new Date().getTime();
+      if (now < notbefore)
+        throw new Error('Leaf certificate is not yet started!')
+        
+      if (notafter < now)
+        throw new Error('Leaf certificate is expired!')
   
       if (subjectCert.getIssuerString() !== issuerCert.getSubjectString())
-        throw new Error('Failed to validate certificate path! Issuers dont match!')
+        throw new Error(`Failed to validate certificate path! Issuers dont match!`)
   
       const subjectCertStruct = jsrsasign.ASN1HEX.getTLVbyList(subjectCert.hex, 0, [0])
       const algorithm = subjectCert.getSignatureAlgorithmField()
@@ -139,6 +158,7 @@ const validateCertificatePath = (certificates) => {
   
       if (!Signature.verify(signatureHex)) 
         throw new Error('Failed to validate certificate path!')
+
     }
   
     return true
@@ -574,9 +594,6 @@ const verifyPackedAttestation = (webAuthnResponse) => {
         
                 return '-----BEGIN CERTIFICATE-----\n' + pemcert + '-----END CERTIFICATE-----';
             })
-            console.log('========================')
-            console.log(certPath)
-            console.log('========================')
              validateCertificatePath(certPath);
         }
         const certInfo = getCertificateInfo(leafCert);
