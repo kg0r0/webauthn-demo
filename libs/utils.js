@@ -4,6 +4,7 @@ const cbor = require('cbor');
 const jsrsasign = require('jsrsasign');
 const elliptic = require('elliptic');
 const NodeRSA = require('node-rsa');
+const ldap2date = require('ldap2date')
 
 const gsr2 = 'MIIDujCCAqKgAwIBAgILBAAAAAABD4Ym5g0wDQYJKoZIhvcNAQEFBQAwTDEgMB4GA1UECxMXR2xvYmFsU2lnbiBSb290IENBIC0gUjIxEzARBgNVBAoTCkdsb2JhbFNpZ24xEzARBgNVBAMTCkdsb2JhbFNpZ24wHhcNMDYxMjE1MDgwMDAwWhcNMjExMjE1MDgwMDAwWjBMMSAwHgYDVQQLExdHbG9iYWxTaWduIFJvb3QgQ0EgLSBSMjETMBEGA1UEChMKR2xvYmFsU2lnbjETMBEGA1UEAxMKR2xvYmFsU2lnbjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKbPJA6+Lm8omUVCxKs+IVSbC9N/hHD6ErPLv4dfxn+G07IwXNb9rfF73OX4YJYJkhD10FPe+3t+c4isUoh7SqbKSaZeqKeMWhG8eoLrvozps6yWJQeXSpkqBy+0Hne/ig+1AnwblrjFuTosvNYSuetZfeLQBoZfXklqtTleiDTsvHgMCJiEbKjNS7SgfQx5TfC4LcshytVsW33hoCmEofnTlEnLJGKRILzdC9XZzPnqJworc5HGnRusyMvo4KD0L5CLTfuwNhv2GXqF4G3yYROIXJ/gkwpRl4pazq+r1feqCapgvdzZX99yqWATXgAByUr6P6TqBwMhAo6CygPCm48CAwEAAaOBnDCBmTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUm+IHV2ccHsBqBt5ZtJot39wZhi4wNgYDVR0fBC8wLTAroCmgJ4YlaHR0cDovL2NybC5nbG9iYWxzaWduLm5ldC9yb290LXIyLmNybDAfBgNVHSMEGDAWgBSb4gdXZxwewGoG3lm0mi3f3BmGLjANBgkqhkiG9w0BAQUFAAOCAQEAmYFThxxol4aR7OBKuEQLq4GsJ0/WwbgcQ3izDJr86iw8bmEbTUsp9Z8FHSbBuOmDAGJFtqkIk7mpM0sYmsL4h4hO291xNBrBVNpGP+DTKqttVCL1OmLNIG+6KYnX3ZHu01yiPqFbQfXf5WRDLenVOavSot+3i9DAgBkcRcAtjOj4LaR0VknFBbVPFd5uRHg5h6h+u/N5GJG79G+dwfCMNYxdAfvDbbnvRG15RjF+Cv6pgsH/76tuIMRQyV+dTZsXjAzlAcmgQWpzU/qlULRuJQ/7TBj0/VLZjmmx6BEP3ojY+x1J96relc8geMJgEtslQIxq/H5COEBkEveegeGTLg=='
 
@@ -110,23 +111,42 @@ const verifyUserVerification = (flags, userVerification) => {
     return;
 }
 
+const verifyRootCert = (certificate) => {
+    const rootPem = certificate;
+    const rootCert = new jsrsasign.X509()
+    rootCert.readCertPEM(rootPem)
+    if (rootCert.getIssuerString() == rootCert.getSubjectString()) {
+        return true;
+    }
+    return false;
+}
+
 const validateCertificatePath = (certificates) => {
+    if (verifyRootCert(certificates[certificates.length - 1]))
+      throw new Error('x5c contains full chain!')
+
     if ((new Set(certificates)).size !== certificates.length) 
         throw new Error('Failed to validate certificates path! Dublicate certificates detected!')
-  
-    for (let i = 0; i < certificates.length; i++) {
+
+    for (let i = 0; i < certificates.length - 1; i++) {
       const subjectPem = certificates[i]
       const subjectCert = new jsrsasign.X509()
       subjectCert.readCertPEM(subjectPem)
   
-      let issuerPem = ''
-      if (i + 1 >= certificates.length) { issuerPem = subjectPem } else { issuerPem = certificates[i + 1] }
-  
+      const issuerPem = certificates[i + 1]
       const issuerCert = new jsrsasign.X509()
       issuerCert.readCertPEM(issuerPem)
+      const notbefore = ldap2date.parse('20' + issuerCert.getNotBefore()).getTime();
+      const notafter = ldap2date.parse('20' + issuerCert.getNotAfter()).getTime();
+      const now = new Date().getTime();
+      if (now < notbefore)
+        throw new Error('Leaf certificate is not yet started!')
+        
+      if (notafter < now)
+        throw new Error('Leaf certificate is expired!')
   
       if (subjectCert.getIssuerString() !== issuerCert.getSubjectString())
-        throw new Error('Failed to validate certificate path! Issuers dont match!')
+        throw new Error(`Failed to validate certificate path! Issuers dont match!`)
   
       const subjectCertStruct = jsrsasign.ASN1HEX.getTLVbyList(subjectCert.hex, 0, [0])
       const algorithm = subjectCert.getSignatureAlgorithmField()
@@ -138,6 +158,7 @@ const validateCertificatePath = (certificates) => {
   
       if (!Signature.verify(signatureHex)) 
         throw new Error('Failed to validate certificate path!')
+
     }
   
     return true
@@ -146,6 +167,15 @@ const validateCertificatePath = (certificates) => {
 const getCertificateInfo = (certificate) => {
     const subjectCert = new jsrsasign.X509();
     subjectCert.readCertPEM(certificate);
+    const notbefore = ldap2date.parse('20' + subjectCert.getNotBefore()).getTime();
+    const notafter = ldap2date.parse('20' + subjectCert.getNotAfter()).getTime();
+    const now = new Date().getTime();
+
+    if (now < notbefore)
+        throw new Error('Leaf certificate is not yet started!')
+
+    if (notafter < now)
+        throw new Error('Leaf certificate is expired!')
 
     const subjectString = subjectCert.getSubjectString();
     const subjectParts = subjectString.slice(1).split('/');
@@ -163,7 +193,6 @@ const getCertificateInfo = (certificate) => {
         subject, version, basicConstraintsCA
     }
 }
-
 
 /**
  * Returns base64url encoded buffer of the given length
@@ -555,6 +584,18 @@ const verifyPackedAttestation = (webAuthnResponse) => {
         /* ----- Verify FULL attestation ----- */
         publicKey = base64url.encode(COSEECDHAtoPKCS(authDataStruct.COSEPublicKey));
         const leafCert = base64ToPem(attestationStruct.attStmt.x5c[0].toString('base64'));
+        if (attestationStruct.attStmt.x5c.length > 1) {
+            let certPath = attestationStruct.attStmt.x5c.map((cert) => {
+                cert = cert.toString('base64');
+        
+                let pemcert = '';
+                for(let i = 0; i < cert.length; i += 64)
+                    pemcert += cert.slice(i, i + 64) + '\n';
+        
+                return '-----BEGIN CERTIFICATE-----\n' + pemcert + '-----END CERTIFICATE-----';
+            })
+             validateCertificatePath(certPath);
+        }
         const certInfo = getCertificateInfo(leafCert);
 
         if (certInfo.subject.OU !== 'Authenticator Attestation')
