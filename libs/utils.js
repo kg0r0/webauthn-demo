@@ -123,46 +123,46 @@ const verifyRootCert = (certificate) => {
 
 const validateCertificatePath = (certificates) => {
     if (verifyRootCert(certificates[certificates.length - 1]))
-      throw new Error('x5c contains full chain!')
+        throw new Error('x5c contains full chain!')
 
-    if ((new Set(certificates)).size !== certificates.length) 
+    if ((new Set(certificates)).size !== certificates.length)
         throw new Error('Failed to validate certificates path! Dublicate certificates detected!')
 
     for (let i = 0; i < certificates.length - 1; i++) {
-      const subjectPem = certificates[i];
-      const subjectCert = new jsrsasign.X509();
-      subjectCert.readCertPEM(subjectPem);
-  
-      const issuerPem = certificates[i + 1];
-      const issuerCert = new jsrsasign.X509();
-      issuerCert.readCertPEM(issuerPem);
-      const notbefore = ldap2date.parse('20' + issuerCert.getNotBefore()).getTime();
-      const notafter = ldap2date.parse('20' + issuerCert.getNotAfter()).getTime();
-      const now = new Date().getTime();
-      if (now < notbefore)
-        throw new Error('Leaf certificate is not yet started!')
-        
-      if (notafter < now)
-        throw new Error('Leaf certificate is expired!')
-  
-      if (subjectCert.getIssuerString() !== issuerCert.getSubjectString())
-        throw new Error(`Failed to validate certificate path! Issuers dont match!`)
-  
-      const subjectCertStruct = jsrsasign.ASN1HEX.getTLVbyList(subjectCert.hex, 0, [0]);
-      const algorithm = subjectCert.getSignatureAlgorithmField();
-      const signatureHex = subjectCert.getSignatureValueHex();
-  
-      const Signature = new jsrsasign.crypto.Signature({ alg: algorithm });
-      Signature.init(issuerPem);
-      Signature.updateHex(subjectCertStruct);
-  
-      if (!Signature.verify(signatureHex)) 
-        throw new Error('Failed to validate certificate path!')
+        const subjectPem = certificates[i];
+        const subjectCert = new jsrsasign.X509();
+        subjectCert.readCertPEM(subjectPem);
+
+        const issuerPem = certificates[i + 1];
+        const issuerCert = new jsrsasign.X509();
+        issuerCert.readCertPEM(issuerPem);
+        const notbefore = ldap2date.parse('20' + issuerCert.getNotBefore()).getTime();
+        const notafter = ldap2date.parse('20' + issuerCert.getNotAfter()).getTime();
+        const now = new Date().getTime();
+        if (now < notbefore)
+            throw new Error('Leaf certificate is not yet started!')
+
+        if (notafter < now)
+            throw new Error('Leaf certificate is expired!')
+
+        if (subjectCert.getIssuerString() !== issuerCert.getSubjectString())
+            throw new Error(`Failed to validate certificate path! Issuers dont match!`)
+
+        const subjectCertStruct = jsrsasign.ASN1HEX.getTLVbyList(subjectCert.hex, 0, [0]);
+        const algorithm = subjectCert.getSignatureAlgorithmField();
+        const signatureHex = subjectCert.getSignatureValueHex();
+
+        const Signature = new jsrsasign.crypto.Signature({ alg: algorithm });
+        Signature.init(issuerPem);
+        Signature.updateHex(subjectCertStruct);
+
+        if (!Signature.verify(signatureHex))
+            throw new Error('Failed to validate certificate path!')
 
     }
-  
+
     return true
-  }
+}
 
 const getCertificateInfo = (certificate) => {
     const subjectCert = new jsrsasign.X509();
@@ -379,7 +379,7 @@ const parseAuthData = (buffer) => {
         COSEPublicKey = buffer;
     }
 
-    return { rpIdHash, flagsBuf, flags, counter, counterBuf, aaguid, credID,  credIDLenBuf, COSEPublicKey }
+    return { rpIdHash, flagsBuf, flags, counter, counterBuf, aaguid, credID, credIDLenBuf, COSEPublicKey }
 }
 
 /**
@@ -458,34 +458,34 @@ const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
 
         if (PAYLOAD.ctsProfileMatch === false)
             throw new Error('PAYLOAD.ctsProfileMatch is false!')
-        
+
         const date = new Date().getTime();
         if (date <= PAYLOAD.timestampMs)
             throw new Error('PAYLOAD.timestampMs is future!')
-            
+
         if (PAYLOAD.timestampMs <= date - (60 * 1000))
             throw new Error('PAYLOAD.timestampMs is older than 1 minute!')
 
         const certPath = HEADER.x5c.concat([gsr2]).map((cert) => {
             let pemcert = '';
             for (let i = 0; i < cert.length; i += 64) { pemcert += cert.slice(i, i + 64) + '\n' }
-        
+
             return '-----BEGIN CERTIFICATE-----\n' + pemcert + '-----END CERTIFICATE-----'
         })
 
-        if (getCertificateInfo(certPath[0]).subject.CN !== 'attest.android.com') 
+        if (getCertificateInfo(certPath[0]).subject.CN !== 'attest.android.com')
             throw new Error('The common name is not set to "attest.android.com"!')
 
         //validateCertificatePath(certPath)
         const signatureBaseBuffer = Buffer.from(jwsParts[0] + '.' + jwsParts[1]);
         const certificate = certPath[0];
         const signatureBuffer = base64url.toBuffer(SIGNATURE);
-      
+
         const signatureIsValid = crypto.createVerify('sha256')
-          .update(signatureBaseBuffer)
-          .verify(certificate, signatureBuffer)
-      
-        if (!signatureIsValid) 
+            .update(signatureBaseBuffer)
+            .verify(certificate, signatureBuffer)
+
+        if (!signatureIsValid)
             throw new Error('Failed to verify the signature!')
 
         response.verified = true;
@@ -534,7 +534,7 @@ const verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, 
     let response = { 'verified': false }
     const authrDataStruct = parseAuthData(authenticatorData);
 
-    if(Buffer.compare(authrDataStruct.rpIdHash, hash('sha256', Buffer.from(webAuthnResponse.hostname))) !== 0)
+    if (Buffer.compare(authrDataStruct.rpIdHash, hash('sha256', Buffer.from(webAuthnResponse.hostname))) !== 0)
         throw new Error('rpIdHash don\'t match!')
 
     verifyUserVerification(authrDataStruct.flags, userVerification);
@@ -587,14 +587,14 @@ const verifyPackedAttestation = (webAuthnResponse) => {
         if (attestationStruct.attStmt.x5c.length > 1) {
             let certPath = attestationStruct.attStmt.x5c.map((cert) => {
                 cert = cert.toString('base64');
-        
+
                 let pemcert = '';
-                for(let i = 0; i < cert.length; i += 64)
+                for (let i = 0; i < cert.length; i += 64)
                     pemcert += cert.slice(i, i + 64) + '\n';
-        
+
                 return '-----BEGIN CERTIFICATE-----\n' + pemcert + '-----END CERTIFICATE-----';
             })
-             validateCertificatePath(certPath);
+            validateCertificatePath(certPath);
         }
         const certInfo = getCertificateInfo(leafCert);
 
