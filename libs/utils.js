@@ -55,6 +55,65 @@ const COSEALGHASH = {
     '-37': 'sha512'
 }
 
+const TPM_ALG = {
+    0x0000: "TPM_ALG_ERROR",
+    0x0001: "TPM_ALG_RSA",
+    0x0004: "TPM_ALG_SHA",
+    0x0004: "TPM_ALG_SHA1",
+    0x0005: "TPM_ALG_HMAC",
+    0x0006: "TPM_ALG_AES",
+    0x0007: "TPM_ALG_MGF1",
+    0x0008: "TPM_ALG_KEYEDHASH",
+    0x000A: "TPM_ALG_XOR",
+    0x000B: "TPM_ALG_SHA256",
+    0x000C: "TPM_ALG_SHA384",
+    0x000D: "TPM_ALG_SHA512",
+    0x0010: "TPM_ALG_NULL",
+    0x0012: "TPM_ALG_SM3_256",
+    0x0013: "TPM_ALG_SM4",
+    0x0014: "TPM_ALG_RSASSA",
+    0x0015: "TPM_ALG_RSAES",
+    0x0016: "TPM_ALG_RSAPSS",
+    0x0017: "TPM_ALG_OAEP",
+    0x0018: "TPM_ALG_ECDSA",
+    0x0019: "TPM_ALG_ECDH",
+    0x001A: "TPM_ALG_ECDAA",
+    0x001B: "TPM_ALG_SM2",
+    0x001C: "TPM_ALG_ECSCHNORR",
+    0x001D: "TPM_ALG_ECMQV",
+    0x0020: "TPM_ALG_KDF1_SP800_56A",
+    0x0021: "TPM_ALG_KDF2",
+    0x0022: "TPM_ALG_KDF1_SP800_108",
+    0x0023: "TPM_ALG_ECC",
+    0x0025: "TPM_ALG_SYMCIPHER",
+    0x0026: "TPM_ALG_CAMELLIA",
+    0x0040: "TPM_ALG_CTR",
+    0x0041: "TPM_ALG_OFB",
+    0x0042: "TPM_ALG_CBC",
+    0x0043: "TPM_ALG_CFB",
+    0x0044: "TPM_ALG_ECB"
+}
+
+const TPM_ST = {
+    0x00C4: "TPM_ST_RSP_COMMAND",
+    0X8000: "TPM_ST_NULL",
+    0x8001: "TPM_ST_NO_SESSIONS",
+    0x8002: "TPM_ST_SESSIONS",
+    0x8014: "TPM_ST_ATTEST_NV",
+    0x8015: "TPM_ST_ATTEST_COMMAND_AUDIT",
+    0x8016: "TPM_ST_ATTEST_SESSION_AUDIT",
+    0x8017: "TPM_ST_ATTEST_CERTIFY",
+    0x8018: "TPM_ST_ATTEST_QUOTE",
+    0x8019: "TPM_ST_ATTEST_TIME",
+    0x801A: "TPM_ST_ATTEST_CREATION",
+    0x8021: "TPM_ST_CREATION",
+    0x8022: "TPM_ST_VERIFIED",
+    0x8023: "TPM_ST_AUTH_SECRET",
+    0x8024: "TPM_ST_HASHCHECK",
+    0x8025: "TPM_ST_AUTH_SIGNED",
+    0x8029: "TPM_ST_FU_MANIFEST"
+}
+
 /**
  * Takes signature, data and PEM public key and tries to verify signature
  * @param  {Buffer} signature
@@ -191,6 +250,127 @@ const getCertificateInfo = (certificate) => {
 
     return {
         subject, version, basicConstraintsCA
+    }
+}
+
+const parsePubArea = (pubAreaBuffer) => {
+    const typeBuffer = pubAreaBuffer.slice(0, 2);
+    const type = TPM_ALG[typeBuffer.readUInt16BE(0)];
+    pubAreaBuffer = pubAreaBuffer.slice(2);
+
+    const nameAlgBuffer = pubAreaBuffer.slice(0, 2)
+    const nameAlg = TPM_ALG[nameAlgBuffer.readUInt16BE(0)];
+    pubAreaBuffer = pubAreaBuffer.slice(2);
+
+    const objectAttributesBuffer = pubAreaBuffer.slice(0, 4);
+    const objectAttributesInt = objectAttributesBuffer.readUInt32BE(0);
+    const objectAttributes = {
+        fixedTPM: !!(objectAttributesInt & 1),
+        stClear: !!(objectAttributesInt & 2),
+        fixedParent: !!(objectAttributesInt & 8),
+        sensitiveDataOrigin: !!(objectAttributesInt & 16),
+        userWithAuth: !!(objectAttributesInt & 32),
+        adminWithPolicy: !!(objectAttributesInt & 64),
+        noDA: !!(objectAttributesInt & 512),
+        encryptedDuplication: !!(objectAttributesInt & 1024),
+        restricted: !!(objectAttributesInt & 32768),
+        decrypt: !!(objectAttributesInt & 65536),
+        signORencrypt: !!(objectAttributesInt & 131072)
+    }
+    pubAreaBuffer = pubAreaBuffer.slice(4);
+
+    const authPolicyLength = pubAreaBuffer.slice(0, 2).readUInt16BE(0);
+    pubAreaBuffer = pubAreaBuffer.slice(2);
+    const authPolicy = pubAreaBuffer.slice(0, authPolicyLength);
+    pubAreaBuffer = pubAreaBuffer.slice(authPolicyLength);
+
+    let parameters = undefined;
+    if (type === 'TPM_ALG_RSA') {
+        parameters = {
+            symmetric: TPM_ALG[pubAreaBuffer.slice(0, 2).readUInt16BE(0)],
+            scheme: TPM_ALG[pubAreaBuffer.slice(2, 4).readUInt16BE(0)],
+            keyBits: pubAreaBuffer.slice(4, 6).readUInt16BE(0),
+            exponent: pubAreaBuffer.slice(6, 10).readUInt32BE(0)
+        }
+        pubAreaBuffer = pubAreaBuffer.slice(10);
+    } else if (type === 'TPM_ALG_ECC') {
+        parameters = {
+            symmetric: TPM_ALG[pubAreaBuffer.slice(0, 2).readUInt16BE(0)],
+            scheme: TPM_ALG[pubAreaBuffer.slice(2, 4).readUInt16BE(0)],
+            curveID: TPM_ECC_CURVE[pubAreaBuffer.slice(4, 6).readUInt16BE(0)],
+            kdf: TPM_ALG[pubAreaBuffer.slice(6, 8).readUInt16BE(0)]
+        }
+        pubAreaBuffer = pubAreaBuffer.slice(8);
+    } else
+        throw new Error(type + ' is an unsupported type!');
+
+    const uniqueLength = pubAreaBuffer.slice(0, 2).readUInt16BE(0);
+    pubAreaBuffer = pubAreaBuffer.slice(2);
+    const unique = pubAreaBuffer.slice(0, uniqueLength);
+    pubAreaBuffer = pubAreaBuffer.slice(uniqueLength);
+
+    return {
+        type,
+        nameAlg,
+        objectAttributes,
+        authPolicy,
+        parameters,
+        unique
+    }
+}
+
+const parseCertInfo = (certInfoBuffer) => {
+    const magicBuffer = certInfoBuffer.slice(0, 4);
+    const magic = magicBuffer.readUInt32BE(0);
+    certInfoBuffer = certInfoBuffer.slice(4);
+
+    const typeBuffer = certInfoBuffer.slice(0, 2);
+    const type = TPM_ST[typeBuffer.readUInt16BE(0)];
+    certInfoBuffer = certInfoBuffer.slice(2);
+
+    const qualifiedSignerLength = certInfoBuffer.slice(0, 2).readUInt16BE(0);
+    certInfoBuffer  = certInfoBuffer.slice(2);
+    const qualifiedSigner = certInfoBuffer.slice(0, qualifiedSignerLength);
+    certInfoBuffer  = certInfoBuffer.slice(qualifiedSignerLength);
+
+    const extraDataLength = certInfoBuffer.slice(0, 2).readUInt16BE(0);
+    certInfoBuffer  = certInfoBuffer.slice(2);
+    const extraData   = certInfoBuffer.slice(0, extraDataLength);
+    certInfoBuffer  = certInfoBuffer.slice(extraDataLength);
+
+    const clockInfo = {
+        clock: certInfoBuffer.slice(0, 8),
+        resetCount: certInfoBuffer.slice(8, 12).readUInt32BE(0),
+        restartCount: certInfoBuffer.slice(12, 16).readUInt32BE(0),
+        safe: !!(certInfoBuffer[16])
+    }
+    certInfoBuffer  = certInfoBuffer.slice(17);
+
+    let firmwareVersion = certInfoBuffer.slice(0, 8);
+    certInfoBuffer      = certInfoBuffer.slice(8);
+
+    const attestedNameBufferLength = certInfoBuffer.slice(0, 2).readUInt16BE(0)
+    const attestedNameBuffer = certInfoBuffer.slice(2, attestedNameBufferLength + 2);
+    certInfoBuffer = certInfoBuffer.slice(2 + attestedNameBufferLength)
+
+    const attestedQualifiedNameBufferLength = certInfoBuffer.slice(0, 2).readUInt16BE(0)
+    const attestedQualifiedNameBuffer = certInfoBuffer.slice(2, attestedQualifiedNameBufferLength + 2);
+    certInfoBuffer = certInfoBuffer.slice(2 + attestedQualifiedNameBufferLength)
+
+    const attested = {
+        nameAlg: TPM_ALG[attestedNameBuffer.slice(0, 2).readUInt16BE(0)],
+        name: attestedNameBuffer,
+        qualifiedName: attestedQualifiedNameBuffer
+    }
+
+    return {
+        magic,
+        type,
+        qualifiedSigner,
+        extraData,
+        clockInfo,
+        firmwareVersion,
+        attested
     }
 }
 
@@ -439,6 +619,13 @@ const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
         }
     } else if (attestationStruct.fmt === 'packed') {
         response = verifyPackedAttestation(webAuthnResponse);
+    } else if (attestationStruct.fmt === 'tpm') {
+        console.log('===================================================')
+        console.log(parsePubArea(attestationStruct.attStmt.pubArea))
+        console.log('===================================================')
+        console.log(parseCertInfo(attestationStruct.attStmt.certInfo));
+        console.log('===================================================')
+
     } else if (attestationStruct.fmt === 'android-safetynet') {
         const jwsString = attestationStruct.attStmt.response.toString('utf8');
         const jwsParts = jwsString.split('.');
