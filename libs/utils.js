@@ -620,11 +620,33 @@ const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
     } else if (attestationStruct.fmt === 'packed') {
         response = verifyPackedAttestation(webAuthnResponse);
     } else if (attestationStruct.fmt === 'tpm') {
+        if (attestationStruct.attStmt.ver !== '2.0')
+            throw new Error('ver is not 2.0')
+
+        
         console.log('===================================================')
         console.log(parsePubArea(attestationStruct.attStmt.pubArea))
         console.log('===================================================')
         console.log(parseCertInfo(attestationStruct.attStmt.certInfo));
         console.log('===================================================')
+        const pubAreaStruct = parsePubArea(attestationStruct.attStmt.pubArea);
+        const certInfoStruct = parseCertInfo(attestationStruct.attStmt.certInfo);
+
+        if(parseCertInfo(attestationStruct.attStmt.certInfo).magic.toString(16) !== "ff544347")
+            throw new Error('magic is not TPM_GENERATED')
+
+        if (certInfoStruct.type !== 'TPM_ST_ATTEST_CERTIFY')
+            throw new Error('type is not TPM_ST_ATTEST_CERTIFY')
+        
+        const clientDataHashBuf = hash('sha256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON));
+        const attToBeSigned = Buffer.concat([attestationStruct.authData, clientDataHashBuf]);
+        const attToBeSignedSHA256Hashed = hash('sha256', attToBeSigned)
+        const attToBeSignedSHA1Hashed = hash('sha1', attToBeSigned)
+
+        if (Buffer.compare(certInfoStruct.extraData, attToBeSignedSHA256Hashed) && Buffer.compare(certInfoStruct.extraData, attToBeSignedSHA1Hashed))
+            throw new Error('certInfo.extraData is not equals to attToBeSignedHash .')
+
+        response.verified = true;
 
     } else if (attestationStruct.fmt === 'android-safetynet') {
         const jwsString = attestationStruct.attStmt.response.toString('utf8');
