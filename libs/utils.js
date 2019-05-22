@@ -81,15 +81,8 @@ const base64ToPem = (b64cert) => {
  * @param  {String} b64UrlString 
  * @return {Boolean}
  */
-const verifyBase64Url = (b64UrlString) => {
-    if (b64UrlString.indexOf('+') !== -1) {
-        return false
-    } else if (b64UrlString.indexOf('/') !== -1) {
-        return false;
-    } else if (b64UrlString.indexOf('=') !== -1) {
-        return false;
-    }
-    return true;
+const isBase64UrlEncoded = (str) => {
+    return !!str.match(/^[A-Za-z0-9\-_]+={0,2}$/);
 }
 
 const verifyUserVerification = (flags, userVerification) => {
@@ -520,13 +513,13 @@ const findAuthr = (credID, authenticators) => {
 const verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators, userVerification) => {
     const authr = findAuthr(webAuthnResponse.body.id, authenticators);
 
-    if (!verifyBase64Url(webAuthnResponse.body.response.authenticatorData))
+    if (!isBase64UrlEncoded(webAuthnResponse.body.response.authenticatorData))
         throw new Error('AuthenticatorData is not base64url encoded');
 
     if (webAuthnResponse.body.response.userHandle && typeof webAuthnResponse.body.response.userHandle !== 'string')
         throw new Error('userHandle is not of type DOMString');
 
-    if (!verifyBase64Url(webAuthnResponse.body.response.signature))
+    if (!isBase64UrlEncoded(webAuthnResponse.body.response.signature))
         throw new Error('Signature is not base64url encoded');
 
     const authenticatorData = base64url.toBuffer(webAuthnResponse.body.response.authenticatorData);
@@ -670,7 +663,7 @@ const verifyPackedAttestation = (webAuthnResponse) => {
 
 
 module.exports = {
-    verifyBase64Url,
+    isBase64UrlEncoded,
     randomBase64URLBuffer,
     generateServerMakeCredRequest,
     generateServerGetAssertion,

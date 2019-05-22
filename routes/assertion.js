@@ -49,7 +49,7 @@ router.post('/result', (request, response) => {
         return
     }
     
-    if (!utils.verifyBase64Url(request.body.id)) {
+    if (!utils.isBase64UrlEncoded(request.body.id)) {
         response.json({
             'status': 'failed',
             'errorMessage': 'Invalid id!'
