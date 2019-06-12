@@ -7,6 +7,7 @@ const NodeRSA = require('node-rsa');
 const ldap2date = require('ldap2date');
 
 const gsr2 = 'MIIDujCCAqKgAwIBAgILBAAAAAABD4Ym5g0wDQYJKoZIhvcNAQEFBQAwTDEgMB4GA1UECxMXR2xvYmFsU2lnbiBSb290IENBIC0gUjIxEzARBgNVBAoTCkdsb2JhbFNpZ24xEzARBgNVBAMTCkdsb2JhbFNpZ24wHhcNMDYxMjE1MDgwMDAwWhcNMjExMjE1MDgwMDAwWjBMMSAwHgYDVQQLExdHbG9iYWxTaWduIFJvb3QgQ0EgLSBSMjETMBEGA1UEChMKR2xvYmFsU2lnbjETMBEGA1UEAxMKR2xvYmFsU2lnbjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKbPJA6+Lm8omUVCxKs+IVSbC9N/hHD6ErPLv4dfxn+G07IwXNb9rfF73OX4YJYJkhD10FPe+3t+c4isUoh7SqbKSaZeqKeMWhG8eoLrvozps6yWJQeXSpkqBy+0Hne/ig+1AnwblrjFuTosvNYSuetZfeLQBoZfXklqtTleiDTsvHgMCJiEbKjNS7SgfQx5TfC4LcshytVsW33hoCmEofnTlEnLJGKRILzdC9XZzPnqJworc5HGnRusyMvo4KD0L5CLTfuwNhv2GXqF4G3yYROIXJ/gkwpRl4pazq+r1feqCapgvdzZX99yqWATXgAByUr6P6TqBwMhAo6CygPCm48CAwEAAaOBnDCBmTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUm+IHV2ccHsBqBt5ZtJot39wZhi4wNgYDVR0fBC8wLTAroCmgJ4YlaHR0cDovL2NybC5nbG9iYWxzaWduLm5ldC9yb290LXIyLmNybDAfBgNVHSMEGDAWgBSb4gdXZxwewGoG3lm0mi3f3BmGLjANBgkqhkiG9w0BAQUFAAOCAQEAmYFThxxol4aR7OBKuEQLq4GsJ0/WwbgcQ3izDJr86iw8bmEbTUsp9Z8FHSbBuOmDAGJFtqkIk7mpM0sYmsL4h4hO291xNBrBVNpGP+DTKqttVCL1OmLNIG+6KYnX3ZHu01yiPqFbQfXf5WRDLenVOavSot+3i9DAgBkcRcAtjOj4LaR0VknFBbVPFd5uRHg5h6h+u/N5GJG79G+dwfCMNYxdAfvDbbnvRG15RjF+Cv6pgsH/76tuIMRQyV+dTZsXjAzlAcmgQWpzU/qlULRuJQ/7TBj0/VLZjmmx6BEP3ojY+x1J96relc8geMJgEtslQIxq/H5COEBkEveegeGTLg==';
+const androidkeystoreroot = 'MIICizCCAjKgAwIBAgIJAKIFntEOQ1tXMAoGCCqGSM49BAMCMIGYMQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNTW91bnRhaW4gVmlldzEVMBMGA1UECgwMR29vZ2xlLCBJbmMuMRAwDgYDVQQLDAdBbmRyb2lkMTMwMQYDVQQDDCpBbmRyb2lkIEtleXN0b3JlIFNvZnR3YXJlIEF0dGVzdGF0aW9uIFJvb3QwHhcNMTYwMTExMDA0MzUwWhcNMzYwMTA2MDA0MzUwWjCBmDELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDU1vdW50YWluIFZpZXcxFTATBgNVBAoMDEdvb2dsZSwgSW5jLjEQMA4GA1UECwwHQW5kcm9pZDEzMDEGA1UEAwwqQW5kcm9pZCBLZXlzdG9yZSBTb2Z0d2FyZSBBdHRlc3RhdGlvbiBSb290MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE7l1ex+HA220Dpn7mthvsTWpdamguD/9/SQ59dx9EIm29sa/6FsvHrcV30lacqrewLVQBXT5DKyqO107sSHVBpKNjMGEwHQYDVR0OBBYEFMit6XdMRcOjzw0WEOR5QzohWjDPMB8GA1UdIwQYMBaAFMit6XdMRcOjzw0WEOR5QzohWjDPMA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgKEMAoGCCqGSM49BAMCA0cAMEQCIDUho++LNEYenNVg8x1YiSBq3KNlQfYNns6KGYxmSGB7AiBNC/NR2TB8fVvaNTQdqEcbY6WFZTytTySn502vQX3xvw=='
 
 const COSEKEYS = {
     'kty': 1,
@@ -432,6 +433,70 @@ const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
         }
     } else if (attestationStruct.fmt === 'packed') {
         response = verifyPackedAttestation(webAuthnResponse);
+    } else if (attestationStruct.fmt === 'android-key') {
+        const authrDataStruct = parseAuthData(attestationStruct.authData);
+        const clientDataHash = hash('SHA256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON));
+        const signatureBase = Buffer.concat([attestationStruct.authData, clientDataHash])
+        const leafCert = base64ToPem(attestationStruct.attStmt.x5c[0].toString('base64'))
+        const signature = attestationStruct.attStmt.sig
+        response.verified = verifySignature(signature, signatureBase, leafCert)
+        if (!response.verified)
+            throw new Error('Failed to verify the signature!')
+
+        const attestationRootCertificateBuffer = attestationStruct.attStmt.x5c[attestationStruct.attStmt.x5c.length - 1]
+        if (attestationRootCertificateBuffer.toString('base64') !== androidkeystoreroot)
+            throw new Error('Attestation root is not invalid!')
+
+        const certPath = attestationStruct.attStmt.x5c.map((cert) => {
+            cert = cert.toString('base64')
+
+            let pemcert = ''
+            for (let i = 0; i < cert.length; i += 64) { pemcert += cert.slice(i, i + 64) + '\n' }
+
+            return '-----BEGIN CERTIFICATE-----\n' + pemcert + '-----END CERTIFICATE-----'
+        })
+
+        validateCertificatePath(certPath)
+        const certASN1 = asn1.decode(attestationStruct.attStmt.x5c[0])
+        /* ----- VERIFY PUBLIC KEY MATCHING ----- */
+        const certJSON = asn1ObjectToJSON(certASN1)
+        const certTBS = certJSON.data[0]
+        const certPubKey = certTBS.data[6]
+        const certPubKeyBuff = certPubKey.data[1].data
+
+        /* CHECK PUBKEY */
+        const coseKey = cbor.decodeAllSync(authDataStruct.COSEPublicKey)[0]
+
+        /* ANSI ECC KEY is 0x04 with X and Y coefficients. But certs have it padded with 0x00 so for simplicity it easier to do it that way */
+        const ansiKey = Buffer.concat([Buffer([0x00, 0x04]), coseKey.get(COSEKEYS.x), coseKey.get(COSEKEYS.y)])
+
+        if (ansiKey.toString('hex') !== certPubKeyBuff.toString('hex')) { throw new Error('Certificate public key does not match public key in authData') }
+        /* ----- VERIFY PUBLIC KEY MATCHING ENDS ----- */
+
+        /* ----- VERIFY CERTIFICATE REQUIREMENTS ----- */
+        const AttestationExtension = findOID(certASN1, '1.3.6.1.4.1.11129.2.1.17')
+        const AttestationExtensionJSON = asn1ObjectToJSON(AttestationExtension)
+
+        const attestationChallenge = AttestationExtensionJSON.data[1].data[0].data[4].data
+
+        if (attestationChallenge.toString('hex') !== clientDataHashBuf.toString('hex')) { throw new Error('Certificate attestation challenge is not set to the clientData hash!') }
+
+        const softwareEnforcedAuthz = AttestationExtensionJSON.data[1].data[0].data[6].data
+        const teeEnforcedAuthz = AttestationExtensionJSON.data[1].data[0].data[7].data
+
+        if (containsASN1Tag(softwareEnforcedAuthz, 600) || containsASN1Tag(teeEnforcedAuthz, 600)) { throw new Error('TEE or Software autherisation list contains "allApplication" flag, which means that credential is not bound to the RP!') }
+        /* ----- VERIFY CERTIFICATE REQUIREMENTS ENDS ----- */
+
+        if (response.verified) {
+            response.authrInfo = {
+                fmt: 'android-key',
+                publicKey: base64url.encode(publicKey),
+                counter: authrDataStruct.counter,
+                credID: authrDataStruct.credID
+            }
+        }
+
+
     } else if (attestationStruct.fmt === 'android-safetynet') {
         const jwsString = attestationStruct.attStmt.response.toString('utf8');
         const jwsParts = jwsString.split('.');
