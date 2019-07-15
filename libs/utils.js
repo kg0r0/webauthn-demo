@@ -623,14 +623,17 @@ const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
         if (attestationStruct.attStmt.ver !== '2.0')
             throw new Error('ver is not 2.0')
 
-        
+        const authrDataStruct = parseAuthData(attestationStruct.authData);
         console.log('===================================================')
-        console.log(parsePubArea(attestationStruct.attStmt.pubArea))
+        console.log("pubArea", parsePubArea(attestationStruct.attStmt.pubArea))
         console.log('===================================================')
-        console.log(parseCertInfo(attestationStruct.attStmt.certInfo));
+        console.log("certInfo", parseCertInfo(attestationStruct.attStmt.certInfo));
         console.log('===================================================')
         const pubAreaStruct = parsePubArea(attestationStruct.attStmt.pubArea);
+        const pubKeyCose = cbor.decodeAllSync(authrDataStruct.COSEPublicKey)[0];
         const certInfoStruct = parseCertInfo(attestationStruct.attStmt.certInfo);
+        if(Buffer.compare(pubAreaStruct.unique, pubKeyCose.get(COSEKEYS.crv)))
+            throw new Error("pubArea.unique is not set to newly generated public key")
 
         if(parseCertInfo(attestationStruct.attStmt.certInfo).magic.toString(16) !== "ff544347")
             throw new Error('magic is not TPM_GENERATED')
