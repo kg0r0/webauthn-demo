@@ -377,7 +377,6 @@ const verifyPackedAttestation = (webAuthnResponse) => {
     return response;
 }
 
-
 module.exports = {
     generateServerMakeCredRequest,
     verifyAuthenticatorAttestationResponse,
