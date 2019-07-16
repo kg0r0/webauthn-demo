@@ -629,6 +629,13 @@ const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
         console.log('===================================================')
         console.log("certInfo", parseCertInfo(attestationStruct.attStmt.certInfo));
         console.log('===================================================')
+        let x5c = [];
+        for(let cert of attestationStruct.attStmt.x5c) {
+            cert = base64ToPem(cert.toString('base64'))
+            x5c.push(cert)
+        }
+        console.log("attcert", x5c)
+        console.log('===================================================')
         const pubAreaStruct = parsePubArea(attestationStruct.attStmt.pubArea);
         const pubKeyCose = cbor.decodeAllSync(authrDataStruct.COSEPublicKey)[0];
         const certInfoStruct = parseCertInfo(attestationStruct.attStmt.certInfo);
