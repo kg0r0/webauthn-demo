@@ -1,5 +1,7 @@
 const express   = require('express');
 const utils     = require('../libs/utils');
+const attestation     = require('../libs/attestation');
+const assertion     = require('../libs/assertion');
 const config    = require('../config.json');
 const base64url = require('base64url');
 const router    = express.Router();
@@ -26,7 +28,7 @@ router.post('/options', (request, response) => {
         return
     }
 
-    let getAssertion    = utils.generateServerGetAssertion(database[username].authenticators)
+    let getAssertion    = assertion.generateServerGetAssertion(database[username].authenticators)
     getAssertion.status = 'ok';
     getAssertion.errorMessage = '';
     getAssertion.extensions = request.body.extensions;
@@ -94,7 +96,7 @@ router.post('/result', (request, response) => {
     let result;
     if(request.body.response.authenticatorData) {
         /* This is get assertion */
-        result = utils.verifyAuthenticatorAssertionResponse(request, database[request.session.username].authenticators, request.session.userVerification);
+        result = assertion.verifyAuthenticatorAssertionResponse(request, database[request.session.username].authenticators, request.session.userVerification);
     } else {
         response.json({
             'status': 'failed',

@@ -1,5 +1,6 @@
 const express   = require('express');
 const utils     = require('../libs/utils');
+const attestation     = require('../libs/attestation');
 const config    = require('../config.json');
 const base64url = require('base64url');
 const router    = express.Router();
@@ -33,7 +34,7 @@ router.post('/options', (request, response) => {
     }
 
 
-    let challengeMakeCred    = utils.generateServerMakeCredRequest(username, displayName, database[username].id, request.body.attestation);
+    let challengeMakeCred    = attestation.generateServerMakeCredRequest(username, displayName, database[username].id, request.body.attestation);
     challengeMakeCred.status = 'ok'
     challengeMakeCred.errorMessage = '';
     challengeMakeCred.extensions = request.body.extensions;
@@ -103,7 +104,7 @@ router.post('/result', (request, response) => {
 
     let result;
     if(webauthnResp.response.attestationObject) {
-        result = utils.verifyAuthenticatorAttestationResponse(webauthnResp);
+        result = attestation.verifyAuthenticatorAttestationResponse(webauthnResp);
 
         if(result.verified) {
             database[request.session.username].authenticators.push(result.authrInfo);
