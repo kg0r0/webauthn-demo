@@ -1,12 +1,13 @@
-const express   = require('express');
-const utils     = require('../libs/utils');
-const config    = require('../config.json');
+const express = require('express');
+const utils = require('../libs/utils');
+const attestation = require('../libs/attestation');
+const config = require('../config.json');
 const base64url = require('base64url');
-const router    = express.Router();
-const database  = require('./db');
+const router = express.Router();
+const database = require('./db');
 
 router.post('/options', (request, response) => {
-    if(!request.body || !request.body.username || !request.body.displayName) {
+    if (!request.body || !request.body.username || !request.body.displayName) {
         response.json({
             'status': 'failed',
             'errorMessage': 'Request missing display name or username field!'
@@ -15,13 +16,13 @@ router.post('/options', (request, response) => {
     }
 
     const username = request.body.username;
-    const displayName     = request.body.displayName;
+    const displayName = request.body.displayName;
     let excludeCredentials;
 
-    if(database[username] && database[username].registered) {
+    if (database[username] && database[username].registered) {
         excludeCredentials = [{
             'type': 'public-key',
-            'id': database[username].authenticators[0].credID 
+            'id': database[username].authenticators[0].credID
         }]
     } else {
         database[username] = {
@@ -33,7 +34,7 @@ router.post('/options', (request, response) => {
     }
 
 
-    let challengeMakeCred    = utils.generateServerMakeCredRequest(username, displayName, database[username].id, request.body.attestation);
+    let challengeMakeCred = attestation.generateServerMakeCredRequest(username, displayName, database[username].id, request.body.attestation);
     challengeMakeCred.status = 'ok'
     challengeMakeCred.errorMessage = '';
     challengeMakeCred.extensions = request.body.extensions;
@@ -42,15 +43,15 @@ router.post('/options', (request, response) => {
 
 
     request.session.challenge = challengeMakeCred.challenge;
-    request.session.username  = username;
+    request.session.username = username;
 
     response.json(challengeMakeCred)
 })
 
 router.post('/result', (request, response) => {
-    if(!request.body       || !request.body.id
-    || !request.body.rawId || !request.body.response
-    || !request.body.type  || request.body.type !== 'public-key' ) {
+    if (!request.body || !request.body.id
+        || !request.body.rawId || !request.body.response
+        || !request.body.type || request.body.type !== 'public-key') {
         response.json({
             'status': 'failed',
             'errorMessage': 'Response missing one or more of id/rawId/response/type fields, or type is not public-key!'
@@ -67,10 +68,10 @@ router.post('/result', (request, response) => {
     }
 
     const webauthnResp = request.body
-    const clientData   = JSON.parse(base64url.decode(webauthnResp.response.clientDataJSON));
+    const clientData = JSON.parse(base64url.decode(webauthnResp.response.clientDataJSON));
 
     /* Check challenge... */
-    if(clientData.challenge !== request.session.challenge) {
+    if (clientData.challenge !== request.session.challenge) {
         response.json({
             'status': 'failed',
             'errorMessage': 'Challenges don\'t match!'
@@ -78,7 +79,7 @@ router.post('/result', (request, response) => {
     }
 
     /* ...and origin */
-    if(clientData.origin !== config.origin) {
+    if (clientData.origin !== config.origin) {
         response.json({
             'status': 'failed',
             'errorMessage': 'Origins don\'t match!'
@@ -86,26 +87,26 @@ router.post('/result', (request, response) => {
     }
 
     /* ...and type */
-    if(clientData.type !== 'webauthn.create') {
+    if (clientData.type !== 'webauthn.create') {
         response.json({
             'status': 'failed',
             'errorMessage': 'Type don\'t match!'
-        }) 
+        })
     }
 
     /* ...and tokenBinding */
-    if(clientData.tokenBinding) {
+    if (clientData.tokenBinding) {
         response.json({
             'status': 'failed',
             'errorMessage': 'Token Binding don\`t support!'
-        }) 
+        })
     }
 
     let result;
-    if(webauthnResp.response.attestationObject) {
-        result = utils.verifyAuthenticatorAttestationResponse(webauthnResp);
+    if (webauthnResp.response.attestationObject) {
+        result = attestation.verifyAuthenticatorAttestationResponse(webauthnResp);
 
-        if(result.verified) {
+        if (result.verified) {
             database[request.session.username].authenticators.push(result.authrInfo);
             database[request.session.username].registered = true
         }
@@ -116,7 +117,7 @@ router.post('/result', (request, response) => {
         })
     }
 
-    if(result.verified) {
+    if (result.verified) {
         request.session.loggedIn = true;
         response.json({
             'status': 'ok',
