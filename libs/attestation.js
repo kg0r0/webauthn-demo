@@ -6,7 +6,6 @@ const NodeRSA = require('node-rsa');
 const utils = require('./utils');
 
 const gsr2 = 'MIIDujCCAqKgAwIBAgILBAAAAAABD4Ym5g0wDQYJKoZIhvcNAQEFBQAwTDEgMB4GA1UECxMXR2xvYmFsU2lnbiBSb290IENBIC0gUjIxEzARBgNVBAoTCkdsb2JhbFNpZ24xEzARBgNVBAMTCkdsb2JhbFNpZ24wHhcNMDYxMjE1MDgwMDAwWhcNMjExMjE1MDgwMDAwWjBMMSAwHgYDVQQLExdHbG9iYWxTaWduIFJvb3QgQ0EgLSBSMjETMBEGA1UEChMKR2xvYmFsU2lnbjETMBEGA1UEAxMKR2xvYmFsU2lnbjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKbPJA6+Lm8omUVCxKs+IVSbC9N/hHD6ErPLv4dfxn+G07IwXNb9rfF73OX4YJYJkhD10FPe+3t+c4isUoh7SqbKSaZeqKeMWhG8eoLrvozps6yWJQeXSpkqBy+0Hne/ig+1AnwblrjFuTosvNYSuetZfeLQBoZfXklqtTleiDTsvHgMCJiEbKjNS7SgfQx5TfC4LcshytVsW33hoCmEofnTlEnLJGKRILzdC9XZzPnqJworc5HGnRusyMvo4KD0L5CLTfuwNhv2GXqF4G3yYROIXJ/gkwpRl4pazq+r1feqCapgvdzZX99yqWATXgAByUr6P6TqBwMhAo6CygPCm48CAwEAAaOBnDCBmTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUm+IHV2ccHsBqBt5ZtJot39wZhi4wNgYDVR0fBC8wLTAroCmgJ4YlaHR0cDovL2NybC5nbG9iYWxzaWduLm5ldC9yb290LXIyLmNybDAfBgNVHSMEGDAWgBSb4gdXZxwewGoG3lm0mi3f3BmGLjANBgkqhkiG9w0BAQUFAAOCAQEAmYFThxxol4aR7OBKuEQLq4GsJ0/WwbgcQ3izDJr86iw8bmEbTUsp9Z8FHSbBuOmDAGJFtqkIk7mpM0sYmsL4h4hO291xNBrBVNpGP+DTKqttVCL1OmLNIG+6KYnX3ZHu01yiPqFbQfXf5WRDLenVOavSot+3i9DAgBkcRcAtjOj4LaR0VknFBbVPFd5uRHg5h6h+u/N5GJG79G+dwfCMNYxdAfvDbbnvRG15RjF+Cv6pgsH/76tuIMRQyV+dTZsXjAzlAcmgQWpzU/qlULRuJQ/7TBj0/VLZjmmx6BEP3ojY+x1J96relc8geMJgEtslQIxq/H5COEBkEveegeGTLg==';
-const androidkeystoreroot = 'MIICizCCAjKgAwIBAgIJAKIFntEOQ1tXMAoGCCqGSM49BAMCMIGYMQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNTW91bnRhaW4gVmlldzEVMBMGA1UECgwMR29vZ2xlLCBJbmMuMRAwDgYDVQQLDAdBbmRyb2lkMTMwMQYDVQQDDCpBbmRyb2lkIEtleXN0b3JlIFNvZnR3YXJlIEF0dGVzdGF0aW9uIFJvb3QwHhcNMTYwMTExMDA0MzUwWhcNMzYwMTA2MDA0MzUwWjCBmDELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDU1vdW50YWluIFZpZXcxFTATBgNVBAoMDEdvb2dsZSwgSW5jLjEQMA4GA1UECwwHQW5kcm9pZDEzMDEGA1UEAwwqQW5kcm9pZCBLZXlzdG9yZSBTb2Z0d2FyZSBBdHRlc3RhdGlvbiBSb290MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE7l1ex+HA220Dpn7mthvsTWpdamguD/9/SQ59dx9EIm29sa/6FsvHrcV30lacqrewLVQBXT5DKyqO107sSHVBpKNjMGEwHQYDVR0OBBYEFMit6XdMRcOjzw0WEOR5QzohWjDPMB8GA1UdIwQYMBaAFMit6XdMRcOjzw0WEOR5QzohWjDPMA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgKEMAoGCCqGSM49BAMCA0cAMEQCIDUho++LNEYenNVg8x1YiSBq3KNlQfYNns6KGYxmSGB7AiBNC/NR2TB8fVvaNTQdqEcbY6WFZTytTySn502vQX3xvw=='
 
 const COSEKEYS = {
     'kty': 1,
@@ -207,6 +206,47 @@ const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
             }
         }
 
+    } else if (attestationStruct.fmt === 'tpm') {
+        if (attestationStruct.attStmt.ver !== '2.0')
+            throw new Error('ver is not 2.0')
+
+        const authrDataStruct = utils.parseAuthData(attestationStruct.authData);
+        let x5c = [];
+        for (let cert of attestationStruct.attStmt.x5c) {
+            cert = utils.base64ToPem(cert.toString('base64'))
+            x5c.push(cert)
+        }
+        const pubAreaStruct = utils.parsePubArea(attestationStruct.attStmt.pubArea);
+        const pubKeyCose = cbor.decodeAllSync(authrDataStruct.COSEPublicKey)[0];
+        const certInfoStruct = utils.parseCertInfo(attestationStruct.attStmt.certInfo);
+        if (Buffer.compare(pubAreaStruct.unique, pubKeyCose.get(COSEKEYS.crv)))
+            throw new Error("pubArea.unique is not set to newly generated public key")
+
+        if (utils.parseCertInfo(attestationStruct.attStmt.certInfo).magic.toString(16) !== "ff544347")
+            throw new Error('magic is not TPM_GENERATED')
+
+        if (certInfoStruct.type !== 'TPM_ST_ATTEST_CERTIFY')
+            throw new Error('type is not TPM_ST_ATTEST_CERTIFY')
+
+        const clientDataHashBuf = utils.hash('sha256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON));
+        const attToBeSigned = Buffer.concat([attestationStruct.authData, clientDataHashBuf]);
+        const attToBeSignedSHA256Hashed = utils.hash('sha256', attToBeSigned)
+        const attToBeSignedSHA1Hashed = utils.hash('sha1', attToBeSigned)
+        const signature = attestationStruct.attStmt.sig;
+
+        if (Buffer.compare(certInfoStruct.extraData, attToBeSignedSHA256Hashed) && Buffer.compare(certInfoStruct.extraData, attToBeSignedSHA1Hashed))
+            throw new Error('certInfo.extraData is not equals to attToBeSignedHash .')
+
+        const attCertPem = x5c[0]
+        const hashAlg = COSEALGHASH[pubKeyCose.get(COSEKEYS.alg)];
+        const verifySig = crypto.createVerify(hashAlg);
+        verifySig.write(attestationStruct.attStmt.certInfo);
+        verifySig.end();
+        const res = verifySig.verify(attCertPem, signature);
+        if (!res) {
+            throw new Error("TPM attestation signature verification failed");
+        }
+        response.verified = true;
 
     } else if (attestationStruct.fmt === 'android-safetynet') {
         const jwsString = attestationStruct.attStmt.response.toString('utf8');
