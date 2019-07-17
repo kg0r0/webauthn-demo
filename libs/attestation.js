@@ -211,38 +211,41 @@ const verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
             throw new Error('ver is not 2.0')
 
         const authrDataStruct = utils.parseAuthData(attestationStruct.authData);
-        console.log('===================================================')
-        console.log("pubArea", utils.parsePubArea(attestationStruct.attStmt.pubArea))
-        console.log('===================================================')
-        console.log("certInfo", utils.parseCertInfo(attestationStruct.attStmt.certInfo));
-        console.log('===================================================')
         let x5c = [];
-        for(let cert of attestationStruct.attStmt.x5c) {
+        for (let cert of attestationStruct.attStmt.x5c) {
             cert = utils.base64ToPem(cert.toString('base64'))
             x5c.push(cert)
         }
-        console.log("attcert", x5c)
-        console.log('===================================================')
         const pubAreaStruct = utils.parsePubArea(attestationStruct.attStmt.pubArea);
         const pubKeyCose = cbor.decodeAllSync(authrDataStruct.COSEPublicKey)[0];
         const certInfoStruct = utils.parseCertInfo(attestationStruct.attStmt.certInfo);
-        if(Buffer.compare(pubAreaStruct.unique, pubKeyCose.get(COSEKEYS.crv)))
+        if (Buffer.compare(pubAreaStruct.unique, pubKeyCose.get(COSEKEYS.crv)))
             throw new Error("pubArea.unique is not set to newly generated public key")
 
-        if(utils.parseCertInfo(attestationStruct.attStmt.certInfo).magic.toString(16) !== "ff544347")
+        if (utils.parseCertInfo(attestationStruct.attStmt.certInfo).magic.toString(16) !== "ff544347")
             throw new Error('magic is not TPM_GENERATED')
 
         if (certInfoStruct.type !== 'TPM_ST_ATTEST_CERTIFY')
             throw new Error('type is not TPM_ST_ATTEST_CERTIFY')
-        
+
         const clientDataHashBuf = utils.hash('sha256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON));
         const attToBeSigned = Buffer.concat([attestationStruct.authData, clientDataHashBuf]);
         const attToBeSignedSHA256Hashed = utils.hash('sha256', attToBeSigned)
         const attToBeSignedSHA1Hashed = utils.hash('sha1', attToBeSigned)
+        const signature = attestationStruct.attStmt.sig;
 
         if (Buffer.compare(certInfoStruct.extraData, attToBeSignedSHA256Hashed) && Buffer.compare(certInfoStruct.extraData, attToBeSignedSHA1Hashed))
             throw new Error('certInfo.extraData is not equals to attToBeSignedHash .')
 
+        const attCertPem = x5c[0]
+        const hashAlg = COSEALGHASH[pubKeyCose.get(COSEKEYS.alg)];
+        const verifySig = crypto.createVerify(hashAlg);
+        verifySig.write(attestationStruct.attStmt.certInfo);
+        verifySig.end();
+        const res = verifySig.verify(attCertPem, signature);
+        if (!res) {
+            throw new Error("TPM attestation signature verification failed");
+        }
         response.verified = true;
 
     } else if (attestationStruct.fmt === 'android-safetynet') {
