@@ -1,4 +1,13 @@
 {
     "port": 3000,
-    "origin": "http://localhost:3000"
+    "origin": "http://localhost:3000",
+    "token": "",
+    "mds-register-url": "https://fidoalliance.co.nz/mds/",
+    "mds-endpoints" :[
+        "https://fidoalliance.co.nz/mds/execute/23db40700f37ecb38ed3596ee1d55362640ee95aa990ee495ab5c8cbd0860839",
+        "https://fidoalliance.co.nz/mds/execute/86cd592bc0788de040c5187a619dd8860431b14ee6616a4cfc47857896a86c4e",
+        "https://fidoalliance.co.nz/mds/execute/976ac3d327fc271f6dbe9a17d67216feed65d5af5e3ac99f0689db5cd0af2f4e",
+        "https://fidoalliance.co.nz/mds/execute/cd68f5ec899a39d521f3916aa50bea6bafd5bb0918f17597fb4b771e28808fbc",
+        "https://fidoalliance.co.nz/mds/execute/d2cc917bfec120b61f337d21c0b5e837a97027dfbaa13b8a248c82623301d3eb"
+    ]
 }

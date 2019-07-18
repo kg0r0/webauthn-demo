@@ -3,6 +3,10 @@ const base64url = require('base64url');
 const cbor = require('cbor');
 const jsrsasign = require('jsrsasign');
 const ldap2date = require('ldap2date');
+const request = require('request');
+const jose = require("node-jose");
+const config = require('../config.json');
+const database = require('../routes/db');
 
 const TPM_ALG = {
     0x0000: "TPM_ALG_ERROR",
@@ -63,6 +67,22 @@ const TPM_ST = {
     0x8029: "TPM_ST_FU_MANIFEST"
 }
 
+const fidoMdsRootCert =
+    "-----BEGIN CERTIFICATE-----\n" +
+    "MIICQzCCAcigAwIBAgIORqmxkzowRM99NQZJurcwCgYIKoZIzj0EAwMwUzELMAkG\n" +
+    "A1UEBhMCVVMxFjAUBgNVBAoTDUZJRE8gQWxsaWFuY2UxHTAbBgNVBAsTFE1ldGFk\n" +
+    "YXRhIFRPQyBTaWduaW5nMQ0wCwYDVQQDEwRSb290MB4XDTE1MDYxNzAwMDAwMFoX\n" +
+    "DTQ1MDYxNzAwMDAwMFowUzELMAkGA1UEBhMCVVMxFjAUBgNVBAoTDUZJRE8gQWxs\n" +
+    "aWFuY2UxHTAbBgNVBAsTFE1ldGFkYXRhIFRPQyBTaWduaW5nMQ0wCwYDVQQDEwRS\n" +
+    "b290MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEFEoo+6jdxg6oUuOloqPjK/nVGyY+\n" +
+    "AXCFz1i5JR4OPeFJs+my143ai0p34EX4R1Xxm9xGi9n8F+RxLjLNPHtlkB3X4ims\n" +
+    "rfIx7QcEImx1cMTgu5zUiwxLX1ookVhIRSoso2MwYTAOBgNVHQ8BAf8EBAMCAQYw\n" +
+    "DwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU0qUfC6f2YshA1Ni9udeO0VS7vEYw\n" +
+    "HwYDVR0jBBgwFoAU0qUfC6f2YshA1Ni9udeO0VS7vEYwCgYIKoZIzj0EAwMDaQAw\n" +
+    "ZgIxAKulGbSFkDSZusGjbNkAhAkqTkLWo3GrN5nRBNNk2Q4BlG+AvM5q9wa5WciW\n" +
+    "DcMdeQIxAMOEzOFsxX9Bo0h4LOFE5y5H8bdPFYW+l5gy1tQiJv+5NUyM2IBB55XU\n" +
+    "YjdBz56jSA==\n" +
+    "-----END CERTIFICATE-----\n";
 
 /**
  * Takes signature, data and PEM public key and tries to verify signature
@@ -454,6 +474,31 @@ const parseAuthData = (buffer) => {
     return { rpIdHash, flagsBuf, flags, counter, counterBuf, aaguid, credID, credIDLenBuf, COSEPublicKey }
 }
 
+const mdsClient = () => {
+    database.toc = {}
+    const endpoints = config["mds-endpoints"]
+    for(let endpoint of endpoints) {
+        const url = config.token ? endpoint+"?token="+config.token : endpoint
+        const options = {
+            url,
+            method: 'GET'
+        }
+        request(options, (err, response, body) => {
+            if (err) {
+                throw new Error(err.message);
+            }
+            jose.JWS.createVerify().verify(body, { allowEmbeddedKey: true }).then((parsedJws) => {
+                database["tocStruct"] = parsedJws;
+                for(let entry of JSON.parse(parsedJws.payload.toString()).entries) {
+                    database.toc[entry.aaguid] = entry
+                }
+            }, (err) => {
+                console.log(err.message)
+            })
+        })
+    }
+}
+
 module.exports = {
     isBase64UrlEncoded,
     randomBase64URLBuffer,
@@ -467,5 +512,6 @@ module.exports = {
     base64ToPem,
     verifyUserVerification,
     parsePubArea,
-    parseCertInfo
+    parseCertInfo,
+    mdsClient,
 }
