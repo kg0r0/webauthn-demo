@@ -495,6 +495,7 @@ const mdsClient = () => {
             }, (err) => {
                 console.log(err.message)
             })
+    console.log(database.toc)
         })
     }
 }
