@@ -476,6 +476,7 @@ const parseAuthData = (buffer) => {
 
 const mdsClient = () => {
     database.toc = {}
+    database.metadataStatement = {}
     const endpoints = config["mds-endpoints"]
     for(let endpoint of endpoints) {
         const url = config.token ? endpoint+"?token="+config.token : endpoint
@@ -491,11 +492,16 @@ const mdsClient = () => {
                 database["tocStruct"] = parsedJws;
                 for(let entry of JSON.parse(parsedJws.payload.toString()).entries) {
                     database.toc[entry.aaguid] = entry
+                    request(entry.url, (err, response, body) => {
+                        if (err) {
+                            throw new Error(err.message);
+                        }
+                        database.metadataStatement[entry.aaguid] = JSON.parse(base64url.decode(body));
+                    })
                 }
             }, (err) => {
-                console.log(err.message)
+                console.log(`${err.message} : ${url}`)
             })
-    console.log(database.toc)
         })
     }
 }

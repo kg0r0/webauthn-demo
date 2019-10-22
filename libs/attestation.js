@@ -326,9 +326,11 @@ const verifyPackedAttestation = (webAuthnResponse) => {
         throw new Error('attStmt.alg is Not a Number');
 
     let aaguid = authDataStruct.aaguid.toString('hex')
+    var util = require('util');
+//    console.log(util.inspect(database.toc,false,null));
     console.log(authDataStruct.aaguid.toString('hex'))
-    console.log(aaguid.substr(0,8)+"-"+aaguid.substr(8,4)+"-"+aaguid.substr(12,4)+"-"+aaguid.substr(16,4)+"-"+aaguid.substr(20))
-    console.log(database.toc[aaguid.substr(0,8)+"-"+aaguid.substr(8,4)+"-"+aaguid.substr(12,4)+"-"+aaguid.substr(16,4)+"-"+aaguid.substr(20)])
+//    console.log(aaguid.substr(0,8)+"-"+aaguid.substr(8,4)+"-"+aaguid.substr(12,4)+"-"+aaguid.substr(16,4)+"-"+aaguid.substr(20))
+ //   console.log(database.toc[aaguid.substr(0,8)+"-"+aaguid.substr(8,4)+"-"+aaguid.substr(12,4)+"-"+aaguid.substr(16,4)+"-"+aaguid.substr(20)])
 
     const clientDataHashBuf = utils.hash('sha256', base64url.toBuffer(webAuthnResponse.response.clientDataJSON));
     const signatureBaseBuffer = Buffer.concat([attestationStruct.authData, clientDataHashBuf]);
