@@ -7,6 +7,8 @@ const request = require('request');
 const jose = require("node-jose");
 const config = require('../config.json');
 const database = require('../routes/db');
+const fs = require('fs')
+const path = require('path');
 
 const TPM_ALG = {
     0x0000: "TPM_ALG_ERROR",
@@ -477,6 +479,7 @@ const parseAuthData = (buffer) => {
 const mdsClient = () => {
     database.toc = {}
     database.metadataStatement = {}
+    mdsFileLoder(process.cwd()+"/metadataStatements");
     const endpoints = config["mds-endpoints"]
     for(let endpoint of endpoints) {
         const url = config.token ? endpoint+"?token="+config.token : endpoint
@@ -489,11 +492,12 @@ const mdsClient = () => {
                 throw new Error(err.message);
             }
             jose.JWS.createVerify().verify(body, { allowEmbeddedKey: true }).then((parsedJws) => {
-                database["tocStruct"] = parsedJws;
+                database['tocStruct'] = parsedJws;
                 for(let entry of JSON.parse(parsedJws.payload.toString()).entries) {
                     database.toc[entry.aaguid] = entry
                     request(entry.url, (err, response, body) => {
                         if (err) {
+                            console.log(`${err.message} : ${entry.url}`)
                             throw new Error(err.message);
                         }
                         database.metadataStatement[entry.aaguid] = JSON.parse(base64url.decode(body));
@@ -504,6 +508,20 @@ const mdsClient = () => {
             })
         })
     }
+}
+
+const mdsFileLoder = (dir) => {
+    const filenames = fs.readdirSync(dir);
+    filenames.forEach((filename) => {
+      const fullPath = path.join(dir, filename);
+      const stats = fs.statSync(fullPath);
+      if (stats.isFile()) {
+        var metadataJson = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+        database.metadataStatement[metadataJson.aaguid] = metadataJson;
+      } else if (stats.isDirectory()) {
+        printAllFiles(fullPath);
+      }
+    });
 }
 
 module.exports = {
