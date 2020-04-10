@@ -6,6 +6,7 @@ const path          = require('path');
 const crypto        = require('crypto');
 
 const config        = require('./config.json');
+const utils         = require('./libs/utils');
 const defaultroutes = require('./routes/default');
 const attestation   = require('./routes/attestation');
 const assertion     = require('./routes/assertion');
@@ -32,7 +33,7 @@ app.use('/attestation', attestation);
 app.use('/assertion', assertion);
 
 const port = config.port || 3000;
-app.listen(port);
+app.listen(port, utils.mdsClient);
 console.log(`Started app on port ${port}`);
 
 module.exports = app;
